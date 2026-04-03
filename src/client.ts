@@ -20,7 +20,7 @@ export interface DeviceInfo {
   friendlyName: string;
   networkType: string;
   networkName: string;
-  isTV: boolean;
+  isTv: boolean;
   uiResolution: string;
   [key: string]: string | boolean;
 }
