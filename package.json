@@ -1,0 +1,45 @@
+{
+  "name": "roku-ecp",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Roku External Control Protocol (ECP) — device control, SceneGraph UI inspection, and test automation",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./testing": "./dist/testing.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm test && npm run build"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "keywords": [
+    "roku",
+    "ecp",
+    "external-control-protocol",
+    "testing",
+    "automation",
+    "scenegraph",
+    "brightscript"
+  ],
+  "license": "MIT",
+  "author": "Dane Hesseldahl",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danecodes/roku-ecp.git"
+  },
+  "dependencies": {
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/xml2js": "^0.4.14",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.2"
+  }
+}
