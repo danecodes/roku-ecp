@@ -1,5 +1,5 @@
 {
-  "name": "roku-ecp",
+  "name": "@danecodes/roku-ecp",
   "version": "0.1.0",
   "description": "TypeScript client for the Roku External Control Protocol (ECP) — device control, SceneGraph UI inspection, and test automation",
   "type": "module",
