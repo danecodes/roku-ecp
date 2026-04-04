@@ -61,6 +61,19 @@ describe('EcpClient', () => {
     });
   });
 
+  describe('discover', () => {
+    it('finds a device on the network', async () => {
+      const found = await EcpClient.discover({ timeout: 5000 });
+      expect(found.deviceIp).toBeDefined();
+      expect(found.baseUrl).toContain(':8060');
+    });
+
+    it('discoverAll returns at least one device', async () => {
+      const all = await EcpClient.discoverAll({ timeout: 3000 });
+      expect(all.length).toBeGreaterThan(0);
+    }, 10000);
+  });
+
   describe('constructor', () => {
     it('uses default port 8060', () => {
       const client = new EcpClient('10.0.0.1');

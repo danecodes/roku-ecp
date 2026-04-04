@@ -1,11 +1,12 @@
 # roku-ecp
 
 [![npm version](https://img.shields.io/npm/v/@danecodes/roku-ecp)](https://www.npmjs.com/package/@danecodes/roku-ecp)
+[![CI](https://github.com/danecodes/roku-ecp/actions/workflows/ci.yml/badge.svg)](https://github.com/danecodes/roku-ecp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Lightweight TypeScript client for the Roku [External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md). Companion library to [@danecodes/roku-mcp](https://github.com/danecodes/roku-mcp).
 
-No WebDriver. No Appium. No Selenium. No Java. Just HTTP to port 8060.
+No WebDriver. No Appium. No Selenium. No Java. No native dependencies. Just HTTP to port 8060.
 
 ## Install
 
@@ -18,7 +19,12 @@ npm install @danecodes/roku-ecp
 ```typescript
 import { EcpClient, Key, parseUiXml, findElement, findFocused } from '@danecodes/roku-ecp';
 
+// Connect by IP
 const roku = new EcpClient('192.168.0.30');
+
+// Or discover on the network
+const roku = await EcpClient.discover();
+const allDevices = await EcpClient.discoverAll();
 
 // Send remote control input
 await roku.press(Key.Down, { times: 3 });
@@ -45,6 +51,16 @@ const apps = await roku.queryInstalledApps();
 ```
 
 ## API
+
+### `EcpClient.discover(options?)`
+
+Find a Roku on the local network via SSDP. Returns the first device found.
+
+```typescript
+const roku = await EcpClient.discover();                    // 5s timeout
+const roku = await EcpClient.discover({ timeout: 10000 });  // custom timeout
+const all = await EcpClient.discoverAll();                   // find all devices
+```
 
 ### `new EcpClient(ip, options?)`
 
@@ -111,7 +127,7 @@ Parse the SceneGraph XML and query it with CSS-like selectors:
 ```typescript
 import { parseUiXml, findElement, findElements, findFocused, formatTree } from '@danecodes/roku-ecp';
 
-const tree = await parseUiXml(await roku.queryAppUi());
+const tree = parseUiXml(await roku.queryAppUi());
 
 findElement(tree, 'AppButton#play');                    // by tag#name
 findElement(tree, '#titleLabel');                        // by name only

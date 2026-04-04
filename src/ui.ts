@@ -4,7 +4,7 @@
  * Parses XML from ECP's /query/app-ui into a queryable tree.
  */
 
-import { parseStringPromise } from 'xml2js';
+import { XMLParser } from 'fast-xml-parser';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -22,11 +22,12 @@ export interface UiNode {
 /*  XML → UiNode parsing                                              */
 /* ------------------------------------------------------------------ */
 
-interface RawXmlNode {
-  '#name': string;
-  $?: Record<string, string>;
-  $$?: RawXmlNode[];
-}
+const uiParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  preserveOrder: true,
+  textNodeName: '#text',
+});
 
 const WRAPPER_NODES = new Set([
   'app-ui',
@@ -37,31 +38,50 @@ const WRAPPER_NODES = new Set([
   'screen',
 ]);
 
-export async function parseUiXml(xml: string): Promise<UiNode> {
-  const raw = await parseStringPromise(xml, {
-    explicitChildren: true,
-    preserveChildrenOrder: true,
-    charsAsChildren: false,
-    explicitRoot: false,
-  });
-  return unwrap(convertNode(raw as RawXmlNode));
+export function parseUiXml(xml: string): UiNode {
+  const raw = uiParser.parse(xml);
+  const root = convertOrdered(raw);
+  if (!root) throw new Error('Failed to parse UI XML');
+  return unwrap(root);
 }
 
-function convertNode(raw: RawXmlNode, parent?: UiNode): UiNode {
-  const node: UiNode = {
-    tag: raw['#name'],
-    attrs: raw.$ ?? {},
-    children: [],
-    parent,
-  };
-  node.name = node.attrs.name ?? node.attrs.id;
+function convertOrdered(nodes: Record<string, unknown>[], parent?: UiNode): UiNode | undefined {
+  for (const entry of nodes) {
+    // Skip processing instructions and text nodes
+    if ('?xml' in entry || '#text' in entry) continue;
 
-  if (raw.$$) {
-    for (const child of raw.$$) {
-      node.children.push(convertNode(child, node));
+    const tagName = Object.keys(entry).find((k) => k !== ':@');
+    if (!tagName) continue;
+
+    const attrs: Record<string, string> = {};
+    const rawAttrs = entry[':@'] as Record<string, string> | undefined;
+    if (rawAttrs) {
+      for (const [key, value] of Object.entries(rawAttrs)) {
+        attrs[key.replace(/^@_/, '')] = String(value);
+      }
     }
+
+    const node: UiNode = {
+      tag: tagName,
+      attrs,
+      children: [],
+      parent,
+    };
+    node.name = attrs.name ?? attrs.id;
+
+    const childEntries = entry[tagName];
+    if (Array.isArray(childEntries)) {
+      for (const childEntry of childEntries) {
+        if (typeof childEntry === 'object' && childEntry !== null && !('#text' in childEntry)) {
+          const child = convertOrdered([childEntry], node);
+          if (child) node.children.push(child);
+        }
+      }
+    }
+
+    return node;
   }
-  return node;
+  return undefined;
 }
 
 function unwrap(node: UiNode): UiNode {
