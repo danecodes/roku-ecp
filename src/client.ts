@@ -650,12 +650,9 @@ async function digestUpload(
     return Buffer.concat(parts);
   }
 
-  // Step 1: Get 401 with challenge
-  const body = buildBody();
+  // Step 1: Get 401 challenge — no need to send the body yet
   const initial = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-    body: new Uint8Array(body),
     signal: AbortSignal.timeout(60000),
   });
 
