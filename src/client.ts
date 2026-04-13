@@ -604,7 +604,7 @@ function buildDigestHeader(
 async function digestGet(url: string, username: string, password: string): Promise<Buffer> {
   // Step 1: Get 401 with challenge
   const initial = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (initial.ok) return Buffer.from(await initial.arrayBuffer());
+  if (initial.ok) return Buffer.from(await initial.bytes());
 
   const wwwAuth = initial.headers.get('www-authenticate');
   if (!wwwAuth || initial.status !== 401) {
@@ -620,7 +620,7 @@ async function digestGet(url: string, username: string, password: string): Promi
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) throw new Error(`Digest GET failed: ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+  return Buffer.from(await res.bytes());
 }
 
 async function digestUpload(
