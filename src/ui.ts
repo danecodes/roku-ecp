@@ -142,6 +142,7 @@ interface SelectorToken {
   tag?: string;
   id?: string;
   nthChild?: number;
+  attrs?: { key: string; value?: string }[];
 }
 
 function tokenizeSelector(selector: string): SelectorToken[] {
@@ -160,11 +161,21 @@ function tokenizeSelector(selector: string): SelectorToken[] {
       continue;
     }
 
-    const match = part.match(
+    // Extract attribute selectors [key="value"] or [key] from the token
+    const attrs: { key: string; value?: string }[] = [];
+    const attrRe = /\[([A-Za-z][A-Za-z0-9_-]*)(?:="([^"]*)")?\]/g;
+    let attrMatch: RegExpExecArray | null;
+    let remainder = part;
+    while ((attrMatch = attrRe.exec(part)) !== null) {
+      attrs.push({ key: attrMatch[1], value: attrMatch[2] });
+    }
+    remainder = part.replace(attrRe, '');
+
+    const match = remainder.match(
       /^(\*|[A-Za-z][A-Za-z0-9_]*)?(?:#([A-Za-z0-9_:\\-]+))?(?::nth-child\((\d+)\))?$/
     );
     if (!match) {
-      tokens.push({ type: 'node', tag: part });
+      tokens.push({ type: 'node', tag: remainder || undefined, ...(attrs.length ? { attrs } : {}) });
       continue;
     }
 
@@ -174,6 +185,7 @@ function tokenizeSelector(selector: string): SelectorToken[] {
       tag: tag === '*' ? undefined : tag,
       id: id?.replace(/\\\\/g, '\\'),
       nthChild: nth ? parseInt(nth, 10) : undefined,
+      ...(attrs.length ? { attrs } : {}),
     });
   }
 
@@ -259,6 +271,15 @@ function matchesToken(node: UiNode, token: SelectorToken): boolean {
     );
     const idx = siblings.indexOf(node);
     if (idx !== token.nthChild - 1) return false;
+  }
+  if (token.attrs) {
+    for (const attr of token.attrs) {
+      if (attr.value !== undefined) {
+        if (node.attrs[attr.key] !== attr.value) return false;
+      } else {
+        if (!(attr.key in node.attrs)) return false;
+      }
+    }
   }
   return true;
 }

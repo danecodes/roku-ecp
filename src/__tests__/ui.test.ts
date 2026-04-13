@@ -103,6 +103,36 @@ describe('findElement', () => {
   });
 });
 
+describe('attribute selectors', () => {
+  it('[attr="value"] matches attribute value', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, '[focused="true"]')?.attrs.name).toBe('homeBtn');
+  });
+
+  it('[attr] matches attribute existence', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const matches = findElements(tree, '[visible]');
+    expect(matches.length).toBe(1);
+    expect(matches[0].attrs.name).toBe('hero');
+  });
+
+  it('Tag[attr="value"] combines tag and attribute', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, 'AppButton[focused="true"]')?.attrs.name).toBe('homeBtn');
+  });
+
+  it('Tag#id[attr="value"] combines tag, id, and attribute', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, 'AppButton#homeBtn[focused="true"]')?.attrs.name).toBe('homeBtn');
+    expect(findElement(tree, 'AppButton#homeBtn[focused="false"]')).toBeUndefined();
+  });
+
+  it('[attr="value"] works in descendant selectors', async () => {
+    const tree = await parseUiXml(DEEP_FOCUS_XML);
+    expect(findElement(tree, 'EpisodeRow EpisodeCard[focused="true"]')?.attrs.name).toBe('ep2');
+  });
+});
+
 describe('findElements', () => {
   it('returns all matches', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
