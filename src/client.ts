@@ -603,7 +603,7 @@ function buildDigestHeader(
 
 async function digestGet(url: string, username: string, password: string): Promise<Buffer> {
   // Step 1: Get 401 with challenge
-  const initial = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  const initial = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
   if (initial.ok) return Buffer.from(await initial.bytes());
 
   const wwwAuth = initial.headers.get('www-authenticate');
@@ -616,6 +616,7 @@ async function digestGet(url: string, username: string, password: string): Promi
   const authHeader = buildDigestHeader('GET', uri, username, password, challenge, 1);
 
   const res = await fetch(url, {
+    cache: 'no-store',
     headers: { Authorization: authHeader },
     signal: AbortSignal.timeout(15000),
   });
