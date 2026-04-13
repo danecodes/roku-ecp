@@ -135,6 +135,10 @@ findElement(tree, 'HomePage HomeHeroCarousel');          // descendant
 findElement(tree, 'LayoutGroup > AppLabel');             // direct child
 findElement(tree, 'AppButton:nth-child(1)');             // nth-child
 findElement(tree, 'CollectionModule + CollectionModule'); // adjacent sibling
+findElement(tree, '[focused="true"]');                   // attribute value
+findElement(tree, '[visible]');                          // attribute existence
+findElement(tree, 'AppButton[focused="true"]');          // tag + attribute
+findElement(tree, 'AppButton#play[focused="true"]');     // tag + name + attribute
 
 findElements(tree, 'AppButton');  // all matches
 findFocused(tree);                // currently focused node
