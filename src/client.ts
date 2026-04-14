@@ -432,6 +432,7 @@ export class EcpClient {
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
+        headers: { Connection: 'close' },
         signal: AbortSignal.timeout(this.timeout),
       });
     } catch (err) {
@@ -451,6 +452,7 @@ export class EcpClient {
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
         method: 'POST',
+        headers: { Connection: 'close' },
         signal: AbortSignal.timeout(this.timeout),
       });
     } catch (err) {
