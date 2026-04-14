@@ -7,7 +7,13 @@
 import { XMLParser } from 'fast-xml-parser';
 import { createConnection } from 'net';
 import { createHash } from 'crypto';
-import { readFile } from 'fs/promises';
+import { readFile, stat, mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 import { EcpHttpError, EcpTimeoutError, EcpAuthError } from './errors.js';
 
 /* ------------------------------------------------------------------ */
@@ -219,20 +225,36 @@ export class EcpClient {
 
   /* ---- Sideload ---- */
 
-  async sideload(zipPath: string): Promise<string> {
-    const fileData = await readFile(zipPath);
-    const html = await digestUpload(
-      `http://${this.deviceIp}/plugin_install`,
-      'rokudev',
-      this.devPassword,
-      { mysubmit: 'Install' },
-      { archive: { filename: zipPath.split('/').pop()!, data: fileData } },
-    );
-    if (html.includes('Install Success')) return 'Install Success';
-    if (html.includes('Install Failure')) {
-      throw new Error('Sideload failed — check the package');
+  async sideload(pathOrDir: string): Promise<string> {
+    const info = await stat(pathOrDir);
+    let zipPath: string;
+    let tempDir: string | undefined;
+
+    if (info.isDirectory()) {
+      tempDir = await mkdtemp(join(tmpdir(), 'roku-ecp-'));
+      zipPath = join(tempDir, 'sideload.zip');
+      await execFileAsync('zip', ['-r', zipPath, '.'], { cwd: pathOrDir });
+    } else {
+      zipPath = pathOrDir;
     }
-    return 'Sideload completed';
+
+    try {
+      const fileData = await readFile(zipPath);
+      const html = await digestUpload(
+        `http://${this.deviceIp}/plugin_install`,
+        'rokudev',
+        this.devPassword,
+        { mysubmit: 'Install' },
+        { archive: { filename: 'sideload.zip', data: fileData } },
+      );
+      if (html.includes('Install Success')) return 'Install Success';
+      if (html.includes('Install Failure')) {
+        throw new Error('Sideload failed — check the package');
+      }
+      return 'Sideload completed';
+    } finally {
+      if (tempDir) await rm(tempDir, { recursive: true }).catch(() => {});
+    }
   }
 
   /* ---- Console / Debug (port 8085) ---- */
