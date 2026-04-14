@@ -1,4 +1,4 @@
-import { EcpTimeoutError } from './errors.js';
+import { EcpTimeoutError, EcpHttpError } from './errors.js';
 import { findElement, findFocused, type UiNode } from './ui.js';
 import type { EcpClient, ActiveApp } from './client.js';
 
@@ -11,6 +11,10 @@ export interface WaitOptions {
 
 type TreeSource = () => Promise<UiNode>;
 
+function isTransient(err: unknown): boolean {
+  return err instanceof EcpTimeoutError || err instanceof EcpHttpError;
+}
+
 async function poll<T>(
   check: () => Promise<T | undefined>,
   opts: WaitOptions | undefined,
@@ -19,12 +23,18 @@ async function poll<T>(
   const timeout = opts?.timeout ?? 10000;
   const interval = opts?.interval ?? 200;
   const deadline = Date.now() + timeout;
+  let lastError: unknown;
   while (Date.now() < deadline) {
-    const result = await check();
-    if (result !== undefined) return result;
+    try {
+      const result = await check();
+      if (result !== undefined) return result;
+    } catch (err) {
+      if (!isTransient(err)) throw err;
+      lastError = err;
+    }
     await new Promise(r => setTimeout(r, interval));
   }
-  throw new EcpTimeoutError(`${label}: timed out after ${timeout}ms`, timeout);
+  throw lastError ?? new EcpTimeoutError(`${label}: timed out after ${timeout}ms`, timeout);
 }
 
 /** Poll until an element matching `selector` appears in the UI tree. */

@@ -7,13 +7,9 @@
 import { XMLParser } from 'fast-xml-parser';
 import { createConnection } from 'net';
 import { createHash } from 'crypto';
-import { readFile, stat, mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+import { readFile, stat, readdir } from 'fs/promises';
+import { join, relative } from 'path';
+import { ZipFile } from 'yazl';
 import { EcpHttpError, EcpTimeoutError, EcpAuthError } from './errors.js';
 
 /* ------------------------------------------------------------------ */
@@ -227,34 +223,26 @@ export class EcpClient {
 
   async sideload(pathOrDir: string): Promise<string> {
     const info = await stat(pathOrDir);
-    let zipPath: string;
-    let tempDir: string | undefined;
+    let fileData: Buffer;
 
     if (info.isDirectory()) {
-      tempDir = await mkdtemp(join(tmpdir(), 'roku-ecp-'));
-      zipPath = join(tempDir, 'sideload.zip');
-      await execFileAsync('zip', ['-r', zipPath, '.'], { cwd: pathOrDir });
+      fileData = await zipDirectory(pathOrDir);
     } else {
-      zipPath = pathOrDir;
+      fileData = await readFile(pathOrDir);
     }
 
-    try {
-      const fileData = await readFile(zipPath);
-      const html = await digestUpload(
-        `http://${this.deviceIp}/plugin_install`,
-        'rokudev',
-        this.devPassword,
-        { mysubmit: 'Install' },
-        { archive: { filename: 'sideload.zip', data: fileData } },
-      );
-      if (html.includes('Install Success')) return 'Install Success';
-      if (html.includes('Install Failure')) {
-        throw new Error('Sideload failed — check the package');
-      }
-      return 'Sideload completed';
-    } finally {
-      if (tempDir) await rm(tempDir, { recursive: true }).catch(() => {});
+    const html = await digestUpload(
+      `http://${this.deviceIp}/plugin_install`,
+      'rokudev',
+      this.devPassword,
+      { mysubmit: 'Install' },
+      { archive: { filename: 'sideload.zip', data: fileData } },
+    );
+    if (html.includes('Install Success')) return 'Install Success';
+    if (html.includes('Install Failure')) {
+      throw new Error('Sideload failed — check the package');
     }
+    return 'Sideload completed';
   }
 
   /* ---- Console / Debug (port 8085) ---- */
@@ -722,4 +710,31 @@ async function digestUpload(
 
   if (!res.ok) throw new EcpAuthError(`Digest upload failed: ${res.status}`, res.status);
   return res.text();
+}
+
+/* ---- Zip helper ---- */
+
+async function zipDirectory(dir: string): Promise<Buffer> {
+  const zipfile = new ZipFile();
+  await addDirToZip(zipfile, dir, dir);
+  zipfile.end();
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of zipfile.outputStream) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function addDirToZip(zipfile: ZipFile, baseDir: string, currentDir: string): Promise<void> {
+  const entries = await readdir(currentDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = join(currentDir, entry.name);
+    const archivePath = relative(baseDir, fullPath);
+    if (entry.isDirectory()) {
+      await addDirToZip(zipfile, baseDir, fullPath);
+    } else {
+      zipfile.addFile(fullPath, archivePath);
+    }
+  }
 }
