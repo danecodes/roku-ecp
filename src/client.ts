@@ -330,7 +330,12 @@ export class EcpClient {
         : undefined,
       position: player.position ? String(player.position) : undefined,
       duration: player.duration ? String(player.duration) : undefined,
-      isLive: player.is_live === 'true' || player.is_live?.['#text'] === 'false' ? false : undefined,
+      isLive:
+        (player.is_live === 'true' || player.is_live?.['#text'] === 'true')
+          ? true
+          : (player.is_live === 'false' || player.is_live?.['#text'] === 'false')
+            ? false
+            : undefined,
     };
   }
 

@@ -23,8 +23,8 @@ import { EcpClient, Key, parseUiXml, findElement, findFocused } from '@danecodes
 const roku = new EcpClient('192.168.0.30');
 
 // Or discover on the network
-const roku = await EcpClient.discover();
-const allDevices = await EcpClient.discoverAll();
+// const roku = await EcpClient.discover();
+// const allDevices = await EcpClient.discoverAll();
 
 // Send remote control input
 await roku.press(Key.Down, { times: 3 });
@@ -35,7 +35,7 @@ await roku.type('one piece');
 
 // Inspect the SceneGraph UI tree
 const xml = await roku.queryAppUi();
-const tree = await parseUiXml(xml);
+const tree = parseUiXml(xml);
 const button = findElement(tree, 'AppButton#play_button');
 console.log(button?.attrs.text); // "Play"
 
