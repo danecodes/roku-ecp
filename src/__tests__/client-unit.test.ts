@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EcpClient, EcpHttpError, EcpTimeoutError } from '../index.js';
+import { EcpClient, EcpHttpError, EcpTimeoutError, EcpSideloadError, EcpScreenshotError } from '../index.js';
 
 function mockFetch(xml: string, status = 200) {
   vi.stubGlobal(
@@ -196,5 +196,34 @@ describe('typed errors', () => {
 
     const client = new EcpClient('192.168.0.1');
     await expect(client.queryDeviceInfo()).rejects.toThrow(EcpTimeoutError);
+  });
+
+  it('EcpHttpError has method and path', async () => {
+    mockFetch('Server Error', 500);
+    const client = new EcpClient('192.168.0.1');
+    try {
+      await client.queryActiveApp();
+    } catch (err) {
+      expect(err).toBeInstanceOf(EcpHttpError);
+      expect((err as EcpHttpError).method).toBe('GET');
+      expect((err as EcpHttpError).path).toBe('/query/active-app');
+      expect((err as EcpHttpError).status).toBe(500);
+    }
+  });
+});
+
+describe('app-level typed errors', () => {
+  it('EcpSideloadError is exported and has correct name', () => {
+    const err = new EcpSideloadError('test');
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('EcpSideloadError');
+    expect(err.message).toBe('test');
+  });
+
+  it('EcpScreenshotError is exported and has correct name', () => {
+    const err = new EcpScreenshotError('test');
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('EcpScreenshotError');
+    expect(err.message).toBe('test');
   });
 });

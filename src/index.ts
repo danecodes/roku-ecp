@@ -1,5 +1,7 @@
 export {
   EcpClient,
+  EcpSideloadError,
+  EcpScreenshotError,
   Key,
   type KeyName,
   type DeviceInfo,
