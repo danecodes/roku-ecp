@@ -8,6 +8,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { createConnection } from 'net';
 import { createHash } from 'crypto';
 import { readFile } from 'fs/promises';
+import { EcpHttpError, EcpTimeoutError, EcpAuthError } from './errors.js';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -330,12 +331,12 @@ export class EcpClient {
         : undefined,
       position: player.position ? String(player.position) : undefined,
       duration: player.duration ? String(player.duration) : undefined,
-      isLive:
-        (player.is_live === 'true' || player.is_live?.['#text'] === 'true')
-          ? true
-          : (player.is_live === 'false' || player.is_live?.['#text'] === 'false')
-            ? false
-            : undefined,
+      isLive: (() => {
+        const v = player.is_live?.['#text'] ?? player.is_live;
+        if (v === true || v === 'true') return true;
+        if (v === false || v === 'false') return false;
+        return undefined;
+      })(),
     };
   }
 
@@ -492,26 +493,38 @@ export class EcpClient {
   /* ---- HTTP helpers ---- */
 
   private async get(path: string): Promise<string> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      signal: AbortSignal.timeout(this.timeout),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}${path}`, {
+        signal: AbortSignal.timeout(this.timeout),
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        throw new EcpTimeoutError(`ECP GET ${path} timed out after ${this.timeout}ms`, this.timeout);
+      }
+      throw err;
+    }
     if (!res.ok) {
-      throw new Error(
-        `ECP GET ${path} failed: ${res.status} ${res.statusText}`
-      );
+      throw new EcpHttpError('GET', path, res.status, res.statusText);
     }
     return res.text();
   }
 
   private async post(path: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(this.timeout),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(this.timeout),
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        throw new EcpTimeoutError(`ECP POST ${path} timed out after ${this.timeout}ms`, this.timeout);
+      }
+      throw err;
+    }
     if (!res.ok) {
-      throw new Error(
-        `ECP POST ${path} failed: ${res.status} ${res.statusText}`
-      );
+      throw new EcpHttpError('POST', path, res.status, res.statusText);
     }
   }
 }
@@ -613,7 +626,7 @@ async function digestGet(url: string, username: string, password: string): Promi
 
   const wwwAuth = initial.headers.get('www-authenticate');
   if (!wwwAuth || initial.status !== 401) {
-    throw new Error(`Digest auth failed: ${initial.status}`);
+    throw new EcpAuthError(`Digest auth failed: ${initial.status}`, initial.status);
   }
 
   const challenge = parseDigestChallenge(wwwAuth);
@@ -625,7 +638,7 @@ async function digestGet(url: string, username: string, password: string): Promi
     headers: { Authorization: authHeader },
     signal: AbortSignal.timeout(15000),
   });
-  if (!res.ok) throw new Error(`Digest GET failed: ${res.status}`);
+  if (!res.ok) throw new EcpAuthError(`Digest GET failed: ${res.status}`, res.status);
   return Buffer.from(await res.bytes());
 }
 
@@ -666,7 +679,7 @@ async function digestUpload(
 
   const wwwAuth = initial.headers.get('www-authenticate');
   if (!wwwAuth || initial.status !== 401) {
-    throw new Error(`Digest auth failed: ${initial.status}`);
+    throw new EcpAuthError(`Digest auth failed: ${initial.status}`, initial.status);
   }
 
   // Step 2: Retry with digest auth
@@ -685,6 +698,6 @@ async function digestUpload(
     signal: AbortSignal.timeout(60000),
   });
 
-  if (!res.ok) throw new Error(`Digest upload failed: ${res.status}`);
+  if (!res.ok) throw new EcpAuthError(`Digest upload failed: ${res.status}`, res.status);
   return res.text();
 }

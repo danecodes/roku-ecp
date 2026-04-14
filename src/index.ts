@@ -24,3 +24,17 @@ export {
   parseConsoleForIssues,
   type ConsoleIssues,
 } from './console.js';
+
+export {
+  EcpHttpError,
+  EcpTimeoutError,
+  EcpAuthError,
+} from './errors.js';
+
+export {
+  waitForElement,
+  waitForFocus,
+  waitForApp,
+  waitForText,
+  type WaitOptions,
+} from './wait.js';
