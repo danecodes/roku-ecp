@@ -34,6 +34,7 @@ export {
 } from './errors.js';
 
 export {
+  waitFor,
   waitForElement,
   waitForFocus,
   waitForApp,

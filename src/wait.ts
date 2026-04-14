@@ -37,6 +37,14 @@ async function poll<T>(
   throw lastError ?? new EcpTimeoutError(`${label}: timed out after ${timeout}ms`, timeout);
 }
 
+/** Poll until a custom condition returns a defined value. */
+export async function waitFor<T>(
+  check: () => Promise<T | undefined>,
+  opts?: WaitOptions & { label?: string },
+): Promise<T> {
+  return poll(check, opts, opts?.label ?? 'waitFor');
+}
+
 /** Poll until an element matching `selector` appears in the UI tree. */
 export async function waitForElement(
   getTree: TreeSource,
