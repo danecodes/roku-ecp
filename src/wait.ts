@@ -86,6 +86,40 @@ export async function waitForApp(
   );
 }
 
+/** Poll until two consecutive snapshots agree on the focused element. */
+export async function waitForStable(
+  getTree: TreeSource,
+  opts?: WaitOptions,
+): Promise<UiNode> {
+  const timeout = opts?.timeout ?? 3000;
+  const interval = opts?.interval ?? 150;
+  const deadline = Date.now() + timeout;
+  let prevId: string | undefined;
+  let prevNode: UiNode | undefined;
+  let lastError: unknown;
+
+  while (Date.now() < deadline) {
+    try {
+      const tree = await getTree();
+      const focused = findFocused(tree);
+      const curId = focused ? `${focused.tag}:${focused.attrs.name ?? focused.attrs.id ?? ''}` : undefined;
+      if (curId !== undefined && curId === prevId) {
+        return prevNode!;
+      }
+      prevId = curId;
+      prevNode = focused;
+    } catch (err) {
+      if (!isTransient(err)) throw err;
+      lastError = err;
+      prevId = undefined;
+      prevNode = undefined;
+    }
+    await new Promise(r => setTimeout(r, interval));
+  }
+  if (prevNode) return prevNode;
+  throw lastError ?? new EcpTimeoutError(`waitForStable: timed out after ${timeout}ms`, timeout);
+}
+
 /** Poll until an element matching `selector` contains `text` in its text attribute. */
 export async function waitForText(
   getTree: TreeSource,

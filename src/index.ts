@@ -38,5 +38,6 @@ export {
   waitForFocus,
   waitForApp,
   waitForText,
+  waitForStable,
   type WaitOptions,
 } from './wait.js';
