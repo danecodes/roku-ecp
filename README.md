@@ -107,7 +107,8 @@ const perf = await roku.queryChanperf();         // ChanperfSample
 ### Sideload & screenshot
 
 ```typescript
-await roku.sideload('./build.zip');              // deploy dev channel
+await roku.sideload('./build.zip');              // deploy dev channel (zip file)
+await roku.sideload('./my-roku-app');            // deploy dev channel (directory)
 const png = await roku.takeScreenshot();         // returns Buffer
 ```
 
@@ -155,6 +156,60 @@ interface UiNode {
   attrs: Record<string, string>;      // all XML attributes
   children: UiNode[];
   parent?: UiNode;
+}
+```
+
+## Wait helpers
+
+Poll the device until a condition is met, with configurable timeout and interval:
+
+```typescript
+import {
+  waitForElement, waitForFocus, waitForApp, waitForText, waitForStable,
+} from '@danecodes/roku-ecp';
+
+const getTree = async () => parseUiXml(await roku.queryAppUi());
+
+// Wait for an element to appear
+const el = await waitForElement(getTree, '#loginBtn');
+
+// Wait for a specific element to gain focus
+await waitForFocus(getTree, 'AppButton#play');
+
+// Wait for any element to be focused (no selector)
+const focused = await waitForFocus(getTree);
+
+// Wait for an app to become active
+await waitForApp(roku, '12345');
+
+// Wait for text content to appear
+await waitForText(getTree, '#title', 'Now Playing');
+
+// Wait for UI to stabilize after animation (e.g. after a key press)
+await roku.keypress(Key.Down);
+await waitForStable(getTree, { interval: 150, timeout: 3000 });
+```
+
+All helpers accept `WaitOptions`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `timeout` | `10000` | Max wait in ms (`waitForStable` defaults to `3000`) |
+| `interval` | `200` | Poll interval in ms (`waitForStable` defaults to `150`) |
+
+Transient `EcpTimeoutError` and `EcpHttpError` during polling are caught and retried until the deadline. Non-transient errors throw immediately.
+
+## Typed errors
+
+```typescript
+import { EcpHttpError, EcpTimeoutError, EcpAuthError, EcpSideloadError, EcpScreenshotError } from '@danecodes/roku-ecp';
+
+try {
+  await roku.queryDeviceInfo();
+} catch (err) {
+  if (err instanceof EcpTimeoutError) // device unreachable
+  if (err instanceof EcpHttpError)    // non-ok HTTP status { method, path, status, statusText }
+  if (err instanceof EcpAuthError)    // digest auth failure { status }
 }
 ```
 
