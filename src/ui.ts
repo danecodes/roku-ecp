@@ -145,9 +145,29 @@ interface SelectorToken {
   attrs?: { key: string; value?: string }[];
 }
 
+function splitSelector(selector: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let inBrackets = false;
+  let inQuotes = false;
+  for (const ch of selector.trim()) {
+    if (ch === '[' && !inQuotes) { inBrackets = true; current += ch; continue; }
+    if (ch === ']' && !inQuotes) { inBrackets = false; current += ch; continue; }
+    if (ch === '"' && inBrackets) { inQuotes = !inQuotes; current += ch; continue; }
+    if (/\s/.test(ch) && !inBrackets) {
+      if (current) parts.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current) parts.push(current);
+  return parts;
+}
+
 function tokenizeSelector(selector: string): SelectorToken[] {
   const tokens: SelectorToken[] = [];
-  const raw = selector.trim().split(/\s+/);
+  const raw = splitSelector(selector);
 
   for (let i = 0; i < raw.length; i++) {
     const part = raw[i];

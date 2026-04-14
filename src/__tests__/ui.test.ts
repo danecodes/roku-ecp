@@ -131,6 +131,13 @@ describe('attribute selectors', () => {
     const tree = await parseUiXml(DEEP_FOCUS_XML);
     expect(findElement(tree, 'EpisodeRow EpisodeCard[focused="true"]')?.attrs.name).toBe('ep2');
   });
+
+  it('[attr="value with spaces"] matches values containing spaces', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, '[text="Continue Watching"]')?.attrs.name).toBe('title');
+    expect(findElement(tree, 'AppLabel[text="Continue Watching"]')?.attrs.name).toBe('title');
+    expect(findElement(tree, 'AppButton[text="Episode 1"]')?.attrs.name).toBe('card1');
+  });
 });
 
 describe('findElements', () => {
