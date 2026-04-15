@@ -165,7 +165,7 @@ Poll the device until a condition is met, with configurable timeout and interval
 
 ```typescript
 import {
-  waitForElement, waitForFocus, waitForApp, waitForText, waitForStable,
+  waitFor, waitForElement, waitForFocus, waitForApp, waitForText, waitForStable,
 } from '@danecodes/roku-ecp';
 
 const getTree = async () => parseUiXml(await roku.queryAppUi());
@@ -188,6 +188,12 @@ await waitForText(getTree, '#title', 'Now Playing');
 // Wait for UI to stabilize after animation (e.g. after a key press)
 await roku.keypress(Key.Down);
 await waitForStable(getTree, { interval: 150, timeout: 3000 });
+
+// Generic: poll any custom condition
+const state = await waitFor(async () => {
+  const p = await roku.queryMediaPlayer();
+  return p.state === 'play' ? p : undefined;
+}, { timeout: 5000, label: 'waitForPlayback' });
 ```
 
 All helpers accept `WaitOptions`:
@@ -213,9 +219,9 @@ try {
 }
 ```
 
-## Console parser
+## Console & log parsing
 
-Scan BrightScript debug output for issues:
+Powered by [@danecodes/roku-log](https://github.com/danecodes/roku-log). Quick issue scan:
 
 ```typescript
 import { parseConsoleForIssues } from '@danecodes/roku-ecp';
@@ -224,14 +230,36 @@ const output = await roku.readConsole({ duration: 5000 });
 const { errors, crashes, exceptions } = parseConsoleForIssues(output);
 ```
 
-- **errors** — `BRIGHTSCRIPT: ERROR`, `Runtime Error`
-- **crashes** — `Backtrace`, `-- crash`, `BRIGHTSCRIPT STOP`
-- **exceptions** — `STOP in file`, `PAUSE in file`
+For structured parsing with file/line/function extraction:
+
+```typescript
+import { LogParser, LogStream, LogSession, LogFormatter } from '@danecodes/roku-ecp';
+
+// Parse raw text into structured entries
+const parser = new LogParser();
+const entries = parser.parse(output);  // LogEntry[] with type, source, message
+
+// Stream logs in real time
+const stream = new LogStream('192.168.0.30');
+stream.on('error', (err) => console.log(err.errorClass, err.source));
+stream.on('crash', (bt) => console.log(bt.frames));
+stream.on('beacon', (b) => console.log(b.event, b.duration));
+await stream.connect();
+
+// Aggregate and analyze
+const session = new LogSession();
+session.addAll(entries);
+console.log(session.summary());  // { errorCount, crashCount, ... }
+
+// Color-coded terminal output
+const fmt = new LogFormatter({ color: true });
+entries.forEach(e => console.log(fmt.format(e)));
+```
 
 ## Requirements
 
 - Roku device in developer mode on the same network
-- Node.js 18+
+- Node.js 22+
 
 ## License
 

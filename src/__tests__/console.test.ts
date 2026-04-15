@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseConsoleForIssues } from '../console.js';
+import { parseConsoleForIssues } from '../index.js';
 
 describe('parseConsoleForIssues', () => {
   it('returns empty for clean output', () => {

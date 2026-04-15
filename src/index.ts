@@ -24,8 +24,23 @@ export {
 
 export {
   parseConsoleForIssues,
+  LogParser,
+  LogStream,
+  LogSession,
+  LogFormatter,
   type ConsoleIssues,
-} from './console.js';
+  type LogEntry,
+  type LogEntryType,
+  type LogSource,
+  type BrightScriptError,
+  type Backtrace,
+  type BacktraceFrame,
+  type BeaconEntry,
+  type CompileEntry,
+  type LogStreamOptions,
+  type LogFormatterOptions,
+  type LogFilterOptions,
+} from '@danecodes/roku-log';
 
 export {
   EcpHttpError,

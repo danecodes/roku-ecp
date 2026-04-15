@@ -1,6 +1,6 @@
 {
   "name": "@danecodes/roku-ecp",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "TypeScript client for the Roku External Control Protocol (ECP) — device control, SceneGraph UI inspection, and test automation",
   "type": "module",
   "exports": {
@@ -10,7 +10,7 @@
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc",
@@ -41,6 +41,7 @@
     "url": "git+https://github.com/danecodes/roku-ecp.git"
   },
   "dependencies": {
+    "@danecodes/roku-log": "^0.1.0",
     "fast-xml-parser": "^5.5.10",
     "yazl": "^3.3.1"
   },
