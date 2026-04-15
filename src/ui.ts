@@ -106,13 +106,16 @@ function unwrap(node: UiNode): UiNode {
  * Find elements matching a CSS-like selector.
  *
  * Supported syntax:
- *   - Tag name:        `HomePage`
- *   - Tag#id:          `AppButton#actionBtn`
- *   - #id:             `#titleLabel`
- *   - Descendant:      `HomePage HomeHeroCarousel`
- *   - Child:           `LayoutGroup > AppLabel`
- *   - nth-child:       `AppButton:nth-child(1)`
+ *   - Tag name:         `HomePage`
+ *   - Tag#id:           `AppButton#actionBtn`
+ *   - #id:              `#titleLabel`
+ *   - Descendant:       `HomePage HomeHeroCarousel`
+ *   - Child:            `LayoutGroup > AppLabel`
+ *   - nth-child:        `AppButton:nth-child(1)`
  *   - Adjacent sibling: `CollectionModule + CollectionModule`
+ *   - Attribute value:  `[focused="true"]`, `Tag[attr="value"]`
+ *   - Attribute exists: `[visible]`
+ *   - Combined:         `Tag#id[attr="value"]`
  */
 export function findElements(root: UiNode, selector: string): UiNode[] {
   const parts = tokenizeSelector(selector);
