@@ -19,7 +19,9 @@ export {
   findElements,
   findFocused,
   formatTree,
+  getRect,
   type UiNode,
+  type Rect,
   type FormatOptions,
 } from './ui.js';
 

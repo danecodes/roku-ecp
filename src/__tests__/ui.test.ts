@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseUiXml, findElement, findElements, findFocused, formatTree } from '../ui.js';
+import { parseUiXml, findElement, findElements, findFocused, formatTree, getRect } from '../ui.js';
 
 const HOME_PAGE_XML = `<?xml version="1.0" encoding="UTF-8" ?>
 <app-ui>
@@ -47,6 +47,67 @@ const DEEP_FOCUS_XML = `<?xml version="1.0" encoding="UTF-8" ?>
     </screen>
   </topscreen>
 </app-ui>`;
+
+const BOUNDS_XML = `<?xml version="1.0" encoding="UTF-8" ?>
+<app-ui>
+  <topscreen>
+    <screen>
+      <HomePage name="home" bounds="{0, 0, 1920, 1080}" translation="[0, 0]">
+        <NavBar name="navbar" bounds="{0, 0, 1920, 90}" translation="[0, 0]">
+          <NavTab name="tab1" bounds="{0, 0, 200, 90}" translation="[100, 0]" focused="true" />
+          <NavTab name="tab2" bounds="{0, 0, 200, 90}" translation="[300, 0]" />
+        </NavBar>
+        <ContentArea name="content" bounds="{0, 0, 1920, 990}" translation="[0, 90]">
+          <FocusGroup name="row1" bounds="{0, 0, 1920, 300}" translation="[0, 100]">
+            <Card name="card1" bounds="{0, 0, 400, 300}" translation="[50, 0]" />
+          </FocusGroup>
+          <NoInherit name="detached" bounds="{10, 20, 100, 50}" translation="[0, 0]" inheritParentTransform="false" />
+        </ContentArea>
+      </HomePage>
+    </screen>
+  </topscreen>
+</app-ui>`;
+
+describe('getRect', () => {
+  it('returns absolute position accumulating parent translations', async () => {
+    const tree = await parseUiXml(BOUNDS_XML);
+    // card1: bounds {0,0,400,300}, translation [50,0]
+    // parent FocusGroup: translation [0,100]
+    // parent ContentArea: translation [0,90]
+    // parent HomePage: translation [0,0]
+    // Absolute: x=0+50+0+0=50... wait, bounds is the local rect, translation is the node's own offset
+    // Actually: card1 bounds={0,0,400,300}. Walk parents:
+    //   FocusGroup translation=[0,100] → x+=0, y+=100
+    //   ContentArea translation=[0,90] → x+=0, y+=90
+    //   HomePage translation=[0,0] → no change
+    // Result: {0, 190, 400, 300}
+    const card = findElement(tree, '#card1');
+    expect(card).toBeDefined();
+    const rect = getRect(card!);
+    expect(rect).toEqual({ x: 0, y: 190, width: 400, height: 300 });
+  });
+
+  it('returns local bounds when no parent translations', async () => {
+    const tree = await parseUiXml(BOUNDS_XML);
+    const rect = getRect(tree);
+    expect(rect).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+  });
+
+  it('stops accumulating at inheritParentTransform=false', async () => {
+    const tree = await parseUiXml(BOUNDS_XML);
+    const detached = findElement(tree, '#detached');
+    expect(detached).toBeDefined();
+    const rect = getRect(detached!);
+    // inheritParentTransform=false on the node itself, so no parent translations added
+    expect(rect).toEqual({ x: 10, y: 20, width: 100, height: 50 });
+  });
+
+  it('returns undefined when no bounds attribute', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const rect = getRect(tree);
+    expect(rect).toBeUndefined();
+  });
+});
 
 describe('parseUiXml', () => {
   it('unwraps app-ui/topscreen/screen wrappers', async () => {

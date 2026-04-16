@@ -159,6 +159,54 @@ export function findFocused(node: UiNode): UiNode | undefined {
   return undefined;
 }
 
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Compute absolute screen position for a node by accumulating parent translations.
+ *
+ * Roku's bounds attribute is local to the parent container. This walks up
+ * the parent chain adding each parent's translation unless inheritParentTransform
+ * is "false".
+ */
+export function getRect(node: UiNode): Rect | undefined {
+  const bounds = parseBounds(node.attrs.bounds);
+  if (!bounds) return undefined;
+
+  let { x, y } = bounds;
+  let current = node.parent;
+  while (current) {
+    if (node.attrs.inheritParentTransform === 'false') break;
+    const translation = parseTranslation(current.attrs.translation);
+    if (translation) {
+      x += translation.x;
+      y += translation.y;
+    }
+    if (current.attrs.inheritParentTransform === 'false') break;
+    current = current.parent;
+  }
+
+  return { x, y, width: bounds.width, height: bounds.height };
+}
+
+function parseBounds(value: string | undefined): { x: number; y: number; width: number; height: number } | undefined {
+  if (!value) return undefined;
+  const m = value.match(/\{?\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\}?/);
+  if (!m) return undefined;
+  return { x: parseFloat(m[1]), y: parseFloat(m[2]), width: parseFloat(m[3]), height: parseFloat(m[4]) };
+}
+
+function parseTranslation(value: string | undefined): { x: number; y: number } | undefined {
+  if (!value) return undefined;
+  const m = value.match(/\[?\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]?/);
+  if (!m) return undefined;
+  return { x: parseFloat(m[1]), y: parseFloat(m[2]) };
+}
+
 /* ---- Tokenizer ---- */
 
 interface SelectorToken {
