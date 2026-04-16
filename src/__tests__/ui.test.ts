@@ -10,7 +10,7 @@ const HOME_PAGE_XML = `<?xml version="1.0" encoding="UTF-8" ?>
           <AppButton name="homeBtn" focused="true" text="Home" />
           <AppButton name="browseBtn" focused="false" text="Browse" />
         </NavMenu>
-        <HeroCarousel name="hero" visible="true" />
+        <BannerWidget name="hero" visible="true" />
         <LayoutGroup name="rail">
           <AppLabel name="title" text="Continue Watching" />
           <AppButton name="card1" text="Episode 1" />
@@ -54,8 +54,8 @@ const BOUNDS_XML = `<?xml version="1.0" encoding="UTF-8" ?>
     <screen>
       <HomePage name="home" bounds="{0, 0, 1920, 1080}" translation="[0, 0]">
         <NavBar name="navbar" bounds="{0, 0, 1920, 90}" translation="[0, 0]">
-          <NavTab name="tab1" bounds="{0, 0, 200, 90}" translation="[100, 0]" focused="true" />
-          <NavTab name="tab2" bounds="{0, 0, 200, 90}" translation="[300, 0]" />
+          <TabButton name="tab1" bounds="{0, 0, 200, 90}" translation="[100, 0]" focused="true" />
+          <TabButton name="tab2" bounds="{0, 0, 200, 90}" translation="[300, 0]" />
         </NavBar>
         <ContentArea name="content" bounds="{0, 0, 1920, 990}" translation="[0, 90]">
           <FocusGroup name="row1" bounds="{0, 0, 1920, 300}" translation="[0, 100]">
@@ -135,7 +135,7 @@ describe('parseUiXml', () => {
 describe('findElement', () => {
   it('finds by tag name', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
-    expect(findElement(tree, 'HeroCarousel')?.tag).toBe('HeroCarousel');
+    expect(findElement(tree, 'BannerWidget')?.tag).toBe('BannerWidget');
   });
 
   it('finds by #name', async () => {
@@ -240,7 +240,7 @@ describe(':has() pseudo-selector', () => {
 
   it('returns undefined when :has() condition not met', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
-    expect(findElement(tree, 'NavMenu:has(HeroCarousel)')).toBeUndefined();
+    expect(findElement(tree, 'NavMenu:has(BannerWidget)')).toBeUndefined();
   });
 
   it(':has() with adjacent sibling combinator', async () => {
@@ -254,15 +254,15 @@ describe(':has() pseudo-selector', () => {
     // homeBtn has adjacent sibling browseBtn, so homeBtn:has(+ AppButton) should not match
     // (homeBtn has no children). But AppButton#homeBtn that has a next sibling AppButton:
     // Actually :has(+ X) means "this element's next sibling matches X"
-    // NavMenu:has(+ HeroCarousel) — NavMenu is followed by HeroCarousel
-    const nav = findElement(tree, 'NavMenu:has(+ HeroCarousel)');
+    // NavMenu:has(+ BannerWidget) — NavMenu is followed by BannerWidget
+    const nav = findElement(tree, 'NavMenu:has(+ BannerWidget)');
     expect(nav?.attrs.name).toBe('nav');
   });
 
   it(':has(+ Sibling) returns undefined when no matching sibling', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
     // LayoutGroup has no next sibling, so this should not match
-    expect(findElement(tree, 'LayoutGroup:has(+ HeroCarousel)')).toBeUndefined();
+    expect(findElement(tree, 'LayoutGroup:has(+ BannerWidget)')).toBeUndefined();
   });
 
   it(':has(~ Sibling) matches node with any following sibling', async () => {
@@ -276,15 +276,15 @@ describe(':has() pseudo-selector', () => {
 describe('comma-separated selector groups', () => {
   it('matches either selector', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
-    const results = findElements(tree, 'HeroCarousel, AppLabel');
+    const results = findElements(tree, 'BannerWidget, AppLabel');
     expect(results.length).toBe(2);
     const tags = results.map(n => n.tag).sort();
-    expect(tags).toEqual(['AppLabel', 'HeroCarousel']);
+    expect(tags).toEqual(['AppLabel', 'BannerWidget']);
   });
 
   it('deduplicates when both selectors match same node', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
-    const results = findElements(tree, 'HeroCarousel, HeroCarousel');
+    const results = findElements(tree, 'BannerWidget, BannerWidget');
     expect(results.length).toBe(1);
   });
 });
@@ -359,7 +359,7 @@ describe('universal selector', () => {
 describe('general sibling combinator ~', () => {
   it('matches all following siblings', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
-    // NavMenu ~ anything should match HeroCarousel and LayoutGroup
+    // NavMenu ~ anything should match BannerWidget and LayoutGroup
     const results = findElements(tree, 'NavMenu ~ LayoutGroup');
     expect(results.length).toBe(1);
     expect(results[0].attrs.name).toBe('rail');
@@ -401,8 +401,8 @@ describe(':nth-child(odd/even/An+B)', () => {
 describe(':only-child', () => {
   it('matches node that is the sole child', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
-    // HeroCarousel has no children with name, but let's check LayoutGroup > AppLabel
-    // Actually HeroCarousel is not an only child. Let's use a structure where it applies.
+    // BannerWidget has no children with name, but let's check LayoutGroup > AppLabel
+    // Actually BannerWidget is not an only child. Let's use a structure where it applies.
     // In HOME_PAGE_XML, no node is an only child in the main tree.
     // Use NO_FOCUS_XML where AppButton is only child of VideoPlayer
     const noFocusTree = await parseUiXml(NO_FOCUS_XML);
@@ -421,8 +421,8 @@ describe(':only-child', () => {
 describe(':empty', () => {
   it('matches nodes with no children', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
-    // HeroCarousel has no children
-    const result = findElement(tree, 'HeroCarousel:empty');
+    // BannerWidget has no children
+    const result = findElement(tree, 'BannerWidget:empty');
     expect(result?.attrs.name).toBe('hero');
   });
 

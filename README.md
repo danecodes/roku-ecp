@@ -149,11 +149,11 @@ findElement(tree, '#titleLabel');                        // name only
 findElement(tree, '*');                                  // universal (all nodes)
 
 // Combinators
-findElement(tree, 'HomePage HeroCarousel');              // descendant
+findElement(tree, 'HomePage BannerWidget');              // descendant
 findElement(tree, 'LayoutGroup > AppLabel');             // direct child
-findElement(tree, 'CollectionModule + CollectionModule'); // adjacent sibling
+findElement(tree, 'ContentRow + ContentRow'); // adjacent sibling
 findElement(tree, 'NavMenu ~ LayoutGroup');              // general sibling (all following)
-findElements(tree, 'LinearCard, SlantedCard');           // comma groups (union)
+findElements(tree, 'PosterCard, ThumbnailCard');           // comma groups (union)
 
 // Attributes
 findElement(tree, '[focused="true"]');                   // exact value

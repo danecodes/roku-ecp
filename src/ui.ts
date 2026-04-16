@@ -109,10 +109,10 @@ function unwrap(node: UiNode): UiNode {
  *   - Tag name:         `HomePage`
  *   - Tag#id:           `AppButton#actionBtn`
  *   - #id:              `#titleLabel`
- *   - Descendant:       `HomePage HomeHeroCarousel`
+ *   - Descendant:       `HomePage BannerWidget`
  *   - Child:            `LayoutGroup > AppLabel`
  *   - nth-child:        `AppButton:nth-child(1)`
- *   - Adjacent sibling: `CollectionModule + CollectionModule`
+ *   - Adjacent sibling: `ContentRow + ContentRow`
  *   - Attribute value:   `[focused="true"]`, `Tag[attr="value"]`
  *   - Attribute substr:  `[text*="Log"]`
  *   - Attribute starts:  `[text^="Episode"]`
@@ -127,7 +127,7 @@ function unwrap(node: UiNode): UiNode {
  *   - :empty:            `LayoutGroup:empty`
  *   - :nth-child(An+B):  `:nth-child(odd)`, `:nth-child(even)`, `:nth-child(2n+1)`
  *   - General sibling:   `A ~ B` (all following siblings)
- *   - Comma groups:      `LinearCard, SlantedCard`
+ *   - Comma groups:      `PosterCard, ThumbnailCard`
  *   - Universal:         `*`, `HomePage *:has(...)`
  */
 export function findElements(root: UiNode, selector: string): UiNode[] {
