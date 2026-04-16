@@ -107,6 +107,11 @@ describe('getRect', () => {
     const rect = getRect(tree);
     expect(rect).toBeUndefined();
   });
+
+  it('returns undefined for null/undefined input', () => {
+    expect(getRect(undefined)).toBeUndefined();
+    expect(getRect(null)).toBeUndefined();
+  });
 });
 
 describe('parseUiXml', () => {

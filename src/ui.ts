@@ -173,7 +173,8 @@ export interface Rect {
  * the parent chain adding each parent's translation unless inheritParentTransform
  * is "false".
  */
-export function getRect(node: UiNode): Rect | undefined {
+export function getRect(node: UiNode | undefined | null): Rect | undefined {
+  if (!node) return undefined;
   const bounds = parseBounds(node.attrs.bounds);
   if (!bounds) return undefined;
 
