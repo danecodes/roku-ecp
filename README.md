@@ -69,6 +69,8 @@ const all = await EcpClient.discoverAll();                   // find all devices
 | `port` | `8060` | ECP HTTP port |
 | `devPassword` | `"rokudev"` | Developer password for sideload/screenshot |
 | `timeout` | `10000` | Request timeout in ms |
+| `keyCooldown` | `0` | Minimum delay between key presses in ms |
+| `webCooldown` | `0` | Minimum delay between web server requests in ms |
 
 ### Key input
 
@@ -81,6 +83,17 @@ await roku.type('search text', { delay: 50 });        // character-by-character
 ```
 
 All standard Roku keys are available on the `Key` object: `Home`, `Back`, `Select`, `Up`, `Down`, `Left`, `Right`, `Play`, `Rev`, `Fwd`, `Info`, `Search`, `Enter`, `Backspace`, `InstantReplay`, `VolumeUp`, `VolumeDown`, `VolumeMute`, `PowerOn`, `PowerOff`, `InputHDMI1`–`4`, `InputAV1`, `InputTuner`.
+
+### Touch input
+
+```typescript
+await roku.touch({ x: 100, y: 200 });                    // tap at coordinates
+await roku.touch({ x: 100, y: 200, op: 'down' });       // touch down
+await roku.touch({ x: 150, y: 250, op: 'move' });       // drag
+await roku.touch({ x: 150, y: 250, op: 'up' });         // release
+```
+
+Roku's coordinate origin is bottom-left. Operations: `'press'` (default), `'down'`, `'up'`, `'move'`.
 
 ### App lifecycle
 
