@@ -182,6 +182,29 @@ describe(':has() pseudo-selector', () => {
     const home = findElement(tree, 'HomePage:has(AppButton[text="Episode 1"])');
     expect(home?.tag).toBe('HomePage');
   });
+
+  it(':has(+ Sibling) matches node that has a next sibling', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // homeBtn has adjacent sibling browseBtn, so homeBtn:has(+ AppButton) should not match
+    // (homeBtn has no children). But AppButton#homeBtn that has a next sibling AppButton:
+    // Actually :has(+ X) means "this element's next sibling matches X"
+    // NavMenu:has(+ HeroCarousel) — NavMenu is followed by HeroCarousel
+    const nav = findElement(tree, 'NavMenu:has(+ HeroCarousel)');
+    expect(nav?.attrs.name).toBe('nav');
+  });
+
+  it(':has(+ Sibling) returns undefined when no matching sibling', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // LayoutGroup has no next sibling, so this should not match
+    expect(findElement(tree, 'LayoutGroup:has(+ HeroCarousel)')).toBeUndefined();
+  });
+
+  it(':has(~ Sibling) matches node with any following sibling', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // NavMenu ~ LayoutGroup: NavMenu has LayoutGroup as a following sibling
+    const nav = findElement(tree, 'NavMenu:has(~ LayoutGroup)');
+    expect(nav?.attrs.name).toBe('nav');
+  });
 });
 
 describe('comma-separated selector groups', () => {

@@ -198,11 +198,14 @@ function splitSelector(selector: string): string[] {
   let current = '';
   let inBrackets = false;
   let inQuotes = false;
+  let parenDepth = 0;
   for (const ch of selector.trim()) {
-    if (ch === '[' && !inQuotes) { inBrackets = true; current += ch; continue; }
-    if (ch === ']' && !inQuotes) { inBrackets = false; current += ch; continue; }
-    if (ch === '"' && inBrackets) { inQuotes = !inQuotes; current += ch; continue; }
-    if (/\s/.test(ch) && !inBrackets) {
+    if (ch === '(' && !inQuotes) { parenDepth++; current += ch; continue; }
+    if (ch === ')' && !inQuotes) { parenDepth--; current += ch; continue; }
+    if (ch === '[' && !inQuotes && parenDepth === 0) { inBrackets = true; current += ch; continue; }
+    if (ch === ']' && !inQuotes && parenDepth === 0) { inBrackets = false; current += ch; continue; }
+    if (ch === '"' && (inBrackets || parenDepth > 0)) { inQuotes = !inQuotes; current += ch; continue; }
+    if (/\s/.test(ch) && !inBrackets && parenDepth === 0) {
       if (current) parts.push(current);
       current = '';
       continue;
@@ -507,8 +510,30 @@ function matchesToken(node: UiNode, token: SelectorToken): boolean {
     }
   }
   if (token.has) {
-    const descendants = collectAll(node).slice(1);
-    const hasMatch = descendants.some(d => matchParts(d, token.has!, 0, false).length > 0);
+    const hasTokens = token.has;
+    const firstHasToken = hasTokens[0];
+    let hasMatch = false;
+
+    if (firstHasToken?.type === 'adjacent' && node.parent) {
+      // :has(+ X) — check this node's next sibling
+      const siblings = node.parent.children;
+      const idx = siblings.indexOf(node);
+      if (idx >= 0 && idx < siblings.length - 1) {
+        hasMatch = matchParts(siblings[idx + 1], hasTokens, 1, false).length > 0;
+      }
+    } else if (firstHasToken?.type === 'sibling' && node.parent) {
+      // :has(~ X) — check all following siblings
+      const siblings = node.parent.children;
+      const idx = siblings.indexOf(node);
+      for (let i = idx + 1; i < siblings.length && !hasMatch; i++) {
+        hasMatch = matchParts(siblings[i], hasTokens, 1, false).length > 0;
+      }
+    } else {
+      // :has(selector) — check descendants
+      const descendants = collectAll(node).slice(1);
+      hasMatch = descendants.some(d => matchParts(d, hasTokens, 0, false).length > 0);
+    }
+
     if (!hasMatch) return false;
   }
   if (token.not) {
