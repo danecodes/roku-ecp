@@ -118,6 +118,17 @@ export interface EcpClientOptions {
   devPassword?: string;
   /** Request timeout in ms. Default 10000. */
   timeout?: number;
+  /** Minimum delay between key presses in ms. Default 0. */
+  keyCooldown?: number;
+  /** Minimum delay between web server requests in ms. Default 0. */
+  webCooldown?: number;
+}
+
+export interface TouchEvent {
+  x: number;
+  y: number;
+  /** Touch operation: 'down', 'up', 'press', or 'move'. Default 'press'. */
+  op?: 'down' | 'up' | 'press' | 'move';
 }
 
 /* ------------------------------------------------------------------ */
@@ -159,25 +170,34 @@ export class EcpClient {
   readonly baseUrl: string;
   private devPassword: string;
   private timeout: number;
+  private keyCooldown: number;
+  private webCooldown: number;
+  private lastKeyTime = 0;
+  private lastWebTime = 0;
 
   constructor(readonly deviceIp: string, options?: EcpClientOptions) {
     const port = options?.port ?? 8060;
     this.baseUrl = `http://${deviceIp}:${port}`;
     this.devPassword = options?.devPassword ?? 'rokudev';
     this.timeout = options?.timeout ?? 10000;
+    this.keyCooldown = options?.keyCooldown ?? 0;
+    this.webCooldown = options?.webCooldown ?? 0;
   }
 
   /* ---- Key input ---- */
 
   async keypress(key: KeyName | string): Promise<void> {
+    await this.enforceKeyCooldown();
     await this.post(`/keypress/${key}`);
   }
 
   async keydown(key: KeyName | string): Promise<void> {
+    await this.enforceKeyCooldown();
     await this.post(`/keydown/${key}`);
   }
 
   async keyup(key: KeyName | string): Promise<void> {
+    await this.enforceKeyCooldown();
     await this.post(`/keyup/${key}`);
   }
 
@@ -222,6 +242,14 @@ export class EcpClient {
   async input(params: Record<string, string>): Promise<void> {
     const qs = new URLSearchParams(params).toString();
     await this.post(`/input?${qs}`);
+  }
+
+  async touch(event: TouchEvent): Promise<void> {
+    await this.input({
+      'touch.0.x': String(event.x),
+      'touch.0.y': String(event.y),
+      'touch.0.op': event.op ?? 'press',
+    });
   }
 
   async closeApp(): Promise<void> {
@@ -426,9 +454,32 @@ export class EcpClient {
     return ssdpDiscoverAll((ip, opts) => new EcpClient(ip, opts), options);
   }
 
+  /* ---- Cooldown ---- */
+
+  private async enforceKeyCooldown(): Promise<void> {
+    if (this.keyCooldown > 0) {
+      const elapsed = Date.now() - this.lastKeyTime;
+      if (elapsed < this.keyCooldown) {
+        await sleep(this.keyCooldown - elapsed);
+      }
+      this.lastKeyTime = Date.now();
+    }
+  }
+
+  private async enforceWebCooldown(): Promise<void> {
+    if (this.webCooldown > 0) {
+      const elapsed = Date.now() - this.lastWebTime;
+      if (elapsed < this.webCooldown) {
+        await sleep(this.webCooldown - elapsed);
+      }
+      this.lastWebTime = Date.now();
+    }
+  }
+
   /* ---- HTTP helpers ---- */
 
   private async get(path: string): Promise<string> {
+    await this.enforceWebCooldown();
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
@@ -448,6 +499,7 @@ export class EcpClient {
   }
 
   private async post(path: string): Promise<void> {
+    await this.enforceWebCooldown();
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {

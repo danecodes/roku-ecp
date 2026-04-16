@@ -10,6 +10,7 @@ export {
   type InstalledApp,
   type ChanperfSample,
   type EcpClientOptions,
+  type TouchEvent,
 } from './client.js';
 
 export {
