@@ -143,16 +143,36 @@ import { parseUiXml, findElement, findElements, findFocused, formatTree } from '
 
 const tree = parseUiXml(await roku.queryAppUi());
 
-findElement(tree, 'AppButton#play');                    // by tag#name
-findElement(tree, '#titleLabel');                        // by name only
-findElement(tree, 'HomePage HomeHeroCarousel');          // descendant
+// Basic selectors
+findElement(tree, 'AppButton#play');                    // tag#name
+findElement(tree, '#titleLabel');                        // name only
+findElement(tree, '*');                                  // universal (all nodes)
+
+// Combinators
+findElement(tree, 'HomePage HeroCarousel');              // descendant
 findElement(tree, 'LayoutGroup > AppLabel');             // direct child
-findElement(tree, 'AppButton:nth-child(1)');             // nth-child
 findElement(tree, 'CollectionModule + CollectionModule'); // adjacent sibling
-findElement(tree, '[focused="true"]');                   // attribute value
-findElement(tree, '[visible]');                          // attribute existence
-findElement(tree, 'AppButton[focused="true"]');          // tag + attribute
-findElement(tree, 'AppButton#play[focused="true"]');     // tag + name + attribute
+findElement(tree, 'NavMenu ~ LayoutGroup');              // general sibling (all following)
+findElements(tree, 'LinearCard, SlantedCard');           // comma groups (union)
+
+// Attributes
+findElement(tree, '[focused="true"]');                   // exact value
+findElement(tree, '[visible]');                          // existence
+findElement(tree, '[text*="Log"]');                      // substring (contains)
+findElement(tree, '[text^="Episode"]');                  // starts with
+findElement(tree, '[uri$=".png"]');                      // ends with
+findElement(tree, 'AppButton#play[focused="true"]');     // combined
+
+// Pseudo-classes
+findElement(tree, 'AppButton:nth-child(1)');             // nth-child (number)
+findElements(tree, 'AppButton:nth-child(odd)');          // nth-child (odd/even)
+findElements(tree, 'AppButton:nth-child(2n+1)');         // nth-child (formula)
+findElement(tree, 'AppButton:first-child');              // first child
+findElement(tree, 'AppButton:last-child');               // last child
+findElement(tree, 'AppButton:only-child');               // sole child
+findElement(tree, 'LayoutGroup:empty');                  // no children
+findElement(tree, 'AppButton:not([focused="true"])');     // negation
+findElement(tree, 'AppButton:has(AppLabel[text="Log Out"])'); // has matching descendant
 
 findElements(tree, 'AppButton');  // all matches
 findFocused(tree);                // currently focused node

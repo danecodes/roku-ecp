@@ -140,6 +140,209 @@ describe('attribute selectors', () => {
   });
 });
 
+describe('substring attribute matching', () => {
+  it('[attr*="value"] matches substring', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, '[text*="Continue"]')?.attrs.name).toBe('title');
+    expect(findElement(tree, '[text*="Episode"]')?.attrs.name).toBe('card1');
+  });
+
+  it('[attr*="value"] returns undefined on no match', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, '[text*="Nonexistent"]')).toBeUndefined();
+  });
+
+  it('Tag[attr*="value"] combines tag and substring', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, 'AppLabel[text*="Continue"]')?.attrs.name).toBe('title');
+    expect(findElement(tree, 'AppButton[text*="Continue"]')).toBeUndefined();
+  });
+});
+
+describe(':has() pseudo-selector', () => {
+  it('matches parent that has a child matching subselector', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const nav = findElement(tree, 'NavMenu:has(AppButton[focused="true"])');
+    expect(nav?.attrs.name).toBe('nav');
+  });
+
+  it('matches with tag name in :has()', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const group = findElement(tree, 'LayoutGroup:has(AppLabel)');
+    expect(group?.attrs.name).toBe('rail');
+  });
+
+  it('returns undefined when :has() condition not met', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, 'NavMenu:has(HeroCarousel)')).toBeUndefined();
+  });
+
+  it(':has() with adjacent sibling combinator', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const home = findElement(tree, 'HomePage:has(AppButton[text="Episode 1"])');
+    expect(home?.tag).toBe('HomePage');
+  });
+});
+
+describe('comma-separated selector groups', () => {
+  it('matches either selector', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const results = findElements(tree, 'HeroCarousel, AppLabel');
+    expect(results.length).toBe(2);
+    const tags = results.map(n => n.tag).sort();
+    expect(tags).toEqual(['AppLabel', 'HeroCarousel']);
+  });
+
+  it('deduplicates when both selectors match same node', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const results = findElements(tree, 'HeroCarousel, HeroCarousel');
+    expect(results.length).toBe(1);
+  });
+});
+
+describe(':not() pseudo-selector', () => {
+  it('excludes nodes matching the inner selector', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const unfocused = findElements(tree, 'AppButton:not([focused="true"])');
+    for (const node of unfocused) {
+      expect(node.attrs.focused).not.toBe('true');
+    }
+    expect(unfocused.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('combines with tag name', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const notCards = findElements(tree, 'AppButton:not([text*="Episode"])');
+    for (const node of notCards) {
+      expect(node.attrs.text ?? '').not.toContain('Episode');
+    }
+  });
+});
+
+describe(':first-child and :last-child', () => {
+  it(':first-child matches first child', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, 'AppButton:first-child')?.attrs.name).toBe('homeBtn');
+  });
+
+  it(':last-child matches last child', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const last = findElement(tree, 'LayoutGroup > AppButton:last-child');
+    expect(last?.attrs.name).toBe('card2');
+  });
+});
+
+describe('attribute starts/ends with', () => {
+  it('[attr^="value"] matches prefix', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, '[text^="Continue"]')?.attrs.name).toBe('title');
+    expect(findElement(tree, '[text^="Episode"]')?.attrs.name).toBe('card1');
+  });
+
+  it('[attr$="value"] matches suffix', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, '[text$="Watching"]')?.attrs.name).toBe('title');
+    expect(findElement(tree, '[text$="2"]')?.attrs.name).toBe('card2');
+  });
+
+  it('no match returns undefined', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, '[text^="Zzz"]')).toBeUndefined();
+    expect(findElement(tree, '[text$="Zzz"]')).toBeUndefined();
+  });
+});
+
+describe('universal selector', () => {
+  it('* matches all nodes', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const all = findElements(tree, '*');
+    expect(all.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('*[attr] matches any tag with attribute', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const visible = findElements(tree, '*[visible]');
+    expect(visible.length).toBe(1);
+    expect(visible[0].attrs.name).toBe('hero');
+  });
+});
+
+describe('general sibling combinator ~', () => {
+  it('matches all following siblings', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // NavMenu ~ anything should match HeroCarousel and LayoutGroup
+    const results = findElements(tree, 'NavMenu ~ LayoutGroup');
+    expect(results.length).toBe(1);
+    expect(results[0].attrs.name).toBe('rail');
+  });
+
+  it('matches multiple following siblings', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // homeBtn ~ AppButton should match browseBtn
+    const results = findElements(tree, 'AppButton#homeBtn ~ AppButton');
+    expect(results.length).toBe(1);
+    expect(results[0].attrs.name).toBe('browseBtn');
+  });
+});
+
+describe(':nth-child(odd/even/An+B)', () => {
+  it(':nth-child(odd) matches 1st, 3rd, etc.', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // In NavMenu: homeBtn is 1st (odd), browseBtn is 2nd (even)
+    const odd = findElements(tree, 'NavMenu > AppButton:nth-child(odd)');
+    expect(odd.length).toBe(1);
+    expect(odd[0].attrs.name).toBe('homeBtn');
+  });
+
+  it(':nth-child(even) matches 2nd, 4th, etc.', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const even = findElements(tree, 'NavMenu > AppButton:nth-child(even)');
+    expect(even.length).toBe(1);
+    expect(even[0].attrs.name).toBe('browseBtn');
+  });
+
+  it(':nth-child(2n+1) matches odd positions', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    const results = findElements(tree, 'NavMenu > AppButton:nth-child(2n+1)');
+    expect(results.length).toBe(1);
+    expect(results[0].attrs.name).toBe('homeBtn');
+  });
+});
+
+describe(':only-child', () => {
+  it('matches node that is the sole child', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // HeroCarousel has no children with name, but let's check LayoutGroup > AppLabel
+    // Actually HeroCarousel is not an only child. Let's use a structure where it applies.
+    // In HOME_PAGE_XML, no node is an only child in the main tree.
+    // Use NO_FOCUS_XML where AppButton is only child of VideoPlayer
+    const noFocusTree = await parseUiXml(NO_FOCUS_XML);
+    const result = findElement(noFocusTree, 'AppButton:only-child');
+    expect(result?.attrs.name).toBe('playBtn');
+  });
+
+  it('does not match when siblings exist', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // NavMenu has two AppButtons, neither is only-child
+    const result = findElement(tree, 'NavMenu > AppButton:only-child');
+    expect(result).toBeUndefined();
+  });
+});
+
+describe(':empty', () => {
+  it('matches nodes with no children', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    // HeroCarousel has no children
+    const result = findElement(tree, 'HeroCarousel:empty');
+    expect(result?.attrs.name).toBe('hero');
+  });
+
+  it('does not match nodes with children', async () => {
+    const tree = await parseUiXml(HOME_PAGE_XML);
+    expect(findElement(tree, 'NavMenu:empty')).toBeUndefined();
+  });
+});
+
 describe('findElements', () => {
   it('returns all matches', async () => {
     const tree = await parseUiXml(HOME_PAGE_XML);
