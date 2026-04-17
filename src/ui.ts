@@ -261,7 +261,7 @@ function splitSelector(selector: string): string[] {
     if (ch === ')' && !inQuotes) { parenDepth--; current += ch; continue; }
     if (ch === '[' && !inQuotes && parenDepth === 0) { inBrackets = true; current += ch; continue; }
     if (ch === ']' && !inQuotes && parenDepth === 0) { inBrackets = false; current += ch; continue; }
-    if (ch === '"' && (inBrackets || parenDepth > 0)) { inQuotes = !inQuotes; current += ch; continue; }
+    if ((ch === '"' || ch === "'") && (inBrackets || parenDepth > 0)) { inQuotes = !inQuotes; current += ch; continue; }
     if (/\s/.test(ch) && !inBrackets && parenDepth === 0) {
       if (current) parts.push(current);
       current = '';
@@ -332,16 +332,17 @@ function tokenizeSelector(selector: string): SelectorToken[] {
 
     // Extract attribute selectors [key="value"], [key*="value"], [key^="value"], [key$="value"], or [key]
     const attrs: { key: string; value?: string; op?: 'exact' | 'contains' | 'starts' | 'ends' }[] = [];
-    const attrRe = /\[([A-Za-z][A-Za-z0-9_-]*)(?:([*^$])?="([^"]*)")?\]/g;
+    const attrRe = /\[([A-Za-z][A-Za-z0-9_-]*)(?:([*^$])?=(?:"([^"]*)"|'([^']*)'))?]/g;
     let attrMatch: RegExpExecArray | null;
     while ((attrMatch = attrRe.exec(tokenBody)) !== null) {
       const opChar = attrMatch[2];
+      const value = attrMatch[3] ?? attrMatch[4];
       const op = opChar === '*' ? 'contains' as const
         : opChar === '^' ? 'starts' as const
         : opChar === '$' ? 'ends' as const
-        : attrMatch[3] !== undefined ? 'exact' as const
+        : value !== undefined ? 'exact' as const
         : undefined;
-      attrs.push({ key: attrMatch[1], value: attrMatch[3], op });
+      attrs.push({ key: attrMatch[1], value, op });
     }
     const remainder = tokenBody.replace(attrRe, '');
 
