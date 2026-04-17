@@ -145,8 +145,8 @@ describe('queryMediaPlayer', () => {
     expect(player.error).toBe(false);
     expect(player.plugin?.id).toBe('12345');
     expect(player.format?.audio).toBe('aac');
-    expect(player.position).toBe('30000');
-    expect(player.duration).toBe('120000');
+    expect(player.position).toBe(30000);
+    expect(player.duration).toBe(120000);
     expect(player.isLive).toBe(false);
   });
 

@@ -301,6 +301,85 @@ const fmt = new LogFormatter({ color: true });
 entries.forEach(e => console.log(fmt.format(e)));
 ```
 
+## Recipes
+
+### Sideload and verify the home screen loads
+
+```typescript
+import { EcpClient, parseUiXml, waitForElement } from '@danecodes/roku-ecp';
+
+const roku = new EcpClient('192.168.0.30');
+await roku.sideload('./my-roku-app');
+
+const getTree = async () => parseUiXml(await roku.queryAppUi());
+const home = await waitForElement(getTree, 'HomePage', { timeout: 15000 });
+console.log('Home screen loaded:', home.tag);
+```
+
+### Navigate and check focus
+
+Don't `sleep()` after key presses. Use `waitForFocus` or `waitForStable` instead.
+
+```typescript
+import { EcpClient, Key, parseUiXml, waitForFocus, waitForStable } from '@danecodes/roku-ecp';
+
+const roku = new EcpClient('192.168.0.30');
+const getTree = async () => parseUiXml(await roku.queryAppUi());
+
+await roku.press(Key.Down, { times: 3 });
+await waitForStable(getTree);
+
+const focused = await waitForFocus(getTree, 'AppButton#settings');
+console.log('Settings button focused:', focused.attrs.name);
+```
+
+### Wait for a loading spinner to disappear
+
+```typescript
+import { waitForElementGone } from '@danecodes/roku-ecp';
+
+await waitForElementGone(getTree, 'LoadingSpinner', { timeout: 10000 });
+// content is loaded, safe to interact
+```
+
+### Use with vitest
+
+```typescript
+import { describe, it, expect, beforeAll } from 'vitest';
+import { EcpClient, Key, parseUiXml, findFocused, waitForElement } from '@danecodes/roku-ecp';
+
+const roku = new EcpClient(process.env.ROKU_IP ?? '192.168.0.30');
+const getTree = async () => parseUiXml(await roku.queryAppUi());
+
+beforeAll(async () => {
+  await roku.sideload('./my-roku-app');
+  await waitForElement(getTree, 'HomePage', { timeout: 15000 });
+});
+
+describe('home screen', () => {
+  it('starts with the first button focused', async () => {
+    const focused = findFocused(parseUiXml(await roku.queryAppUi()));
+    expect(focused?.tag).toBe('AppButton');
+  });
+
+  it('navigates down to the content rail', async () => {
+    await roku.press(Key.Down);
+    const rail = await waitForElement(getTree, 'ContentRow');
+    expect(rail).toBeDefined();
+  });
+});
+```
+
+### Check device is reachable before running tests
+
+```typescript
+const online = await roku.ping();
+if (!online) {
+  console.error('Roku not reachable at', roku.deviceIp);
+  process.exit(1);
+}
+```
+
 ## Requirements
 
 - Roku in developer mode, same network

@@ -45,6 +45,22 @@ export async function waitFor<T>(
   return poll(check, opts, opts?.label ?? 'waitFor');
 }
 
+/** Poll until an element matching `selector` disappears from the UI tree. */
+export async function waitForElementGone(
+  getTree: TreeSource,
+  selector: string,
+  opts?: WaitOptions,
+): Promise<void> {
+  await poll(
+    async () => {
+      const el = findElement(await getTree(), selector);
+      return el === undefined ? true : undefined;
+    },
+    opts,
+    `waitForElementGone(${selector})`,
+  );
+}
+
 /** Poll until an element matching `selector` appears in the UI tree. */
 export async function waitForElement(
   getTree: TreeSource,

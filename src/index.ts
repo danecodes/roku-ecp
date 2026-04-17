@@ -54,6 +54,7 @@ export {
 export {
   waitFor,
   waitForElement,
+  waitForElementGone,
   waitForFocus,
   waitForApp,
   waitForText,

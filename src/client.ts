@@ -53,8 +53,10 @@ export interface MediaPlayerState {
     captions: string;
     drm: string;
   };
-  position?: string;
-  duration?: string;
+  /** Playback position in milliseconds. */
+  position?: number;
+  /** Content duration in milliseconds. */
+  duration?: number;
   isLive?: boolean;
 }
 
@@ -386,8 +388,8 @@ export class EcpClient {
             drm: String(format['@_drm']),
           }
         : undefined,
-      position: player.position ? String(player.position) : undefined,
-      duration: player.duration ? String(player.duration) : undefined,
+      position: player.position ? parseInt(String(player.position), 10) : undefined,
+      duration: player.duration ? parseInt(String(player.duration), 10) : undefined,
       isLive: (() => {
         const v = player.is_live?.['#text'] ?? player.is_live;
         if (v === true || v === 'true') return true;
@@ -473,6 +475,19 @@ export class EcpClient {
         await sleep(this.webCooldown - elapsed);
       }
       this.lastWebTime = Date.now();
+    }
+  }
+
+  /** Check if the device is reachable. Returns true/false, never throws. */
+  async ping(timeoutMs = 3000): Promise<boolean> {
+    try {
+      await fetch(`${this.baseUrl}/`, {
+        headers: { Connection: 'close' },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      return true;
+    } catch {
+      return false;
     }
   }
 
