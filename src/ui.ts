@@ -347,7 +347,7 @@ function tokenizeSelector(selector: string): SelectorToken[] {
     const remainder = tokenBody.replace(attrRe, '');
 
     const match = remainder.match(
-      /^(\*|[A-Za-z][A-Za-z0-9_]*)?(?:#([A-Za-z0-9_:\\-]+))?(?::nth-child\(([^)]+)\))?$/
+      /^(\*|[A-Za-z][A-Za-z0-9_]*)?(?:#((?:\\.|[A-Za-z0-9_:\-])+))?(?::nth-child\(([^)]+)\))?$/
     );
     if (!match) {
       tokens.push({ type: 'node', tag: remainder || undefined,
@@ -372,7 +372,7 @@ function tokenizeSelector(selector: string): SelectorToken[] {
     tokens.push({
       type: 'node',
       tag: tag === '*' ? undefined : tag,
-      id: id?.replace(/\\\\/g, '\\'),
+      id: id?.replace(/\\(.)/g, '$1'),
       ...(nthChild !== undefined ? { nthChild } : {}),
       ...(firstChild ? { firstChild } : {}),
       ...(lastChild ? { lastChild } : {}),
@@ -507,7 +507,7 @@ function matchGeneralSibling(
 function matchesToken(node: UiNode, token: SelectorToken): boolean {
   if (token.tag && node.tag !== token.tag) return false;
   if (token.id) {
-    const nodeId = node.attrs.name ?? node.attrs.id;
+    const nodeId = node.attrs.name ?? node.attrs.id ?? node.attrs.uiElementId;
     if (nodeId !== token.id) return false;
   }
   if (token.nthChild !== undefined) {
