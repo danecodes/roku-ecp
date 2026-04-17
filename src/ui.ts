@@ -131,6 +131,11 @@ function unwrap(node: UiNode): UiNode {
  *   - Universal:         `*`, `HomePage *:has(...)`
  */
 export function findElements(root: UiNode, selector: string): UiNode[] {
+  if (selector.startsWith('//') || selector.startsWith('./')) {
+    throw new Error(
+      `XPath selectors are not supported: "${selector}". Use CSS (e.g. replace "//Label[@text=\\"X\\"]" with "Label[text=\\"X\\"]")`
+    );
+  }
   const groups = splitCommaGroups(selector);
   if (groups.length > 1) {
     const results: UiNode[] = [];
@@ -505,7 +510,12 @@ function matchGeneralSibling(
 }
 
 function matchesToken(node: UiNode, token: SelectorToken): boolean {
-  if (token.tag && node.tag !== token.tag) return false;
+  if (token.tag) {
+    const aliases = [node.tag];
+    const ext = node.attrs.extends;
+    if (ext) aliases.push(...ext.split(/\s+/));
+    if (!aliases.some(a => a.toLowerCase() === token.tag!.toLowerCase())) return false;
+  }
   if (token.id) {
     const nodeId = node.attrs.name ?? node.attrs.id ?? node.attrs.uiElementId;
     if (nodeId !== token.id) return false;
