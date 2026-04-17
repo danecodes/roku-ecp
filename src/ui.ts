@@ -151,7 +151,15 @@ export function findElement(
 }
 
 export function findFocused(node: UiNode): UiNode | undefined {
-  if (node.attrs.focused === 'true') return node;
+  if (node.attrs.focused === 'true') {
+    // Keep looking deeper — Roku marks the whole chain as focused
+    for (const child of node.children) {
+      const deeper = findFocused(child);
+      if (deeper) return deeper;
+    }
+    // No focused child — this is the leaf
+    return node;
+  }
   for (const child of node.children) {
     const found = findFocused(child);
     if (found) return found;

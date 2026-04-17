@@ -455,6 +455,27 @@ describe('findFocused', () => {
     const tree = await parseUiXml(DEEP_FOCUS_XML);
     expect(findFocused(tree)?.attrs.name).toBe('ep2');
   });
+
+  it('returns the leaf when entire focus chain has focused=true', async () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" ?>
+<app-ui><topscreen><screen>
+  <MainScreen name="screen" focused="true">
+    <SideBar name="sidebar" focused="true">
+      <MenuList name="menu" focused="true">
+        <MenuItem name="item1" focused="true" text="Browse" />
+        <MenuItem name="item2" text="Search" />
+      </MenuList>
+    </SideBar>
+    <ContentArea name="content">
+      <Card name="card1" />
+    </ContentArea>
+  </MainScreen>
+</screen></topscreen></app-ui>`;
+    const tree = await parseUiXml(xml);
+    const focused = findFocused(tree);
+    expect(focused?.attrs.name).toBe('item1');
+    expect(focused?.tag).toBe('MenuItem');
+  });
 });
 
 describe('formatTree', () => {
