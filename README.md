@@ -4,9 +4,9 @@
 [![CI](https://github.com/danecodes/roku-ecp/actions/workflows/ci.yml/badge.svg)](https://github.com/danecodes/roku-ecp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Lightweight TypeScript client for the Roku [External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md). Companion library to [@danecodes/roku-mcp](https://github.com/danecodes/roku-mcp).
+TypeScript client for the Roku [External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md). Companion to [@danecodes/roku-mcp](https://github.com/danecodes/roku-mcp).
 
-No WebDriver. No Appium. No Selenium. No Java. No native dependencies. Just HTTP to port 8060.
+HTTP to port 8060. No WebDriver, no Appium, no Selenium, no Java, no native deps.
 
 ## Install
 
@@ -54,7 +54,7 @@ const apps = await roku.queryInstalledApps();
 
 ### `EcpClient.discover(options?)`
 
-Find a Roku on the local network via SSDP. Returns the first device found.
+Finds Rokus on the local network via SSDP.
 
 ```typescript
 const roku = await EcpClient.discover();                    // 5s timeout
@@ -69,8 +69,8 @@ const all = await EcpClient.discoverAll();                   // find all devices
 | `port` | `8060` | ECP HTTP port |
 | `devPassword` | `"rokudev"` | Developer password for sideload/screenshot |
 | `timeout` | `10000` | Request timeout in ms |
-| `keyCooldown` | `0` | Minimum delay between key presses in ms |
-| `webCooldown` | `0` | Minimum delay between web server requests in ms |
+| `keyCooldown` | `0` | Min delay between key presses in ms |
+| `webCooldown` | `0` | Min delay between web server requests in ms |
 
 ### Key input
 
@@ -82,7 +82,7 @@ await roku.press(Key.Down, { times: 5, delay: 100 }); // repeated press
 await roku.type('search text', { delay: 50 });        // character-by-character
 ```
 
-All standard Roku keys are available on the `Key` object: `Home`, `Back`, `Select`, `Up`, `Down`, `Left`, `Right`, `Play`, `Rev`, `Fwd`, `Info`, `Search`, `Enter`, `Backspace`, `InstantReplay`, `VolumeUp`, `VolumeDown`, `VolumeMute`, `PowerOn`, `PowerOff`, `InputHDMI1`–`4`, `InputAV1`, `InputTuner`.
+The `Key` object has all standard Roku keys: `Home`, `Back`, `Select`, `Up`, `Down`, `Left`, `Right`, `Play`, `Rev`, `Fwd`, `Info`, `Search`, `Enter`, `Backspace`, `InstantReplay`, `VolumeUp`, `VolumeDown`, `VolumeMute`, `PowerOn`, `PowerOff`, `InputHDMI1`-`4`, `InputAV1`, `InputTuner`.
 
 ### Touch input
 
@@ -93,7 +93,7 @@ await roku.touch({ x: 150, y: 250, op: 'move' });       // drag
 await roku.touch({ x: 150, y: 250, op: 'up' });         // release
 ```
 
-Roku's coordinate origin is bottom-left. Operations: `'press'` (default), `'down'`, `'up'`, `'move'`.
+Coordinate origin is bottom-left. Operations: `'press'` (default), `'down'`, `'up'`, `'move'`.
 
 ### App lifecycle
 
@@ -117,7 +117,7 @@ const xml = await roku.queryAppUi();             // raw XML string
 const perf = await roku.queryChanperf();         // ChanperfSample
 ```
 
-### Sideload & screenshot
+### Sideload and screenshot
 
 ```typescript
 await roku.sideload('./build.zip');              // deploy dev channel (zip file)
@@ -125,7 +125,7 @@ await roku.sideload('./my-roku-app');            // deploy dev channel (director
 const png = await roku.takeScreenshot();         // returns Buffer
 ```
 
-Requires developer mode. Uses digest auth with the configured `devPassword`.
+Both require developer mode. Digest auth uses the configured `devPassword`.
 
 ### Debug console (port 8085)
 
@@ -136,7 +136,7 @@ const response = await roku.sendConsoleCommand('bt'); // backtrace
 
 ## UI tree
 
-Parse the SceneGraph XML and query it with CSS-like selectors:
+Parse the SceneGraph XML and query with CSS selectors:
 
 ```typescript
 import { parseUiXml, findElement, findElements, findFocused, formatTree } from '@danecodes/roku-ecp';
@@ -151,9 +151,9 @@ findElement(tree, '*');                                  // universal (all nodes
 // Combinators
 findElement(tree, 'HomePage BannerWidget');              // descendant
 findElement(tree, 'LayoutGroup > AppLabel');             // direct child
-findElement(tree, 'ContentRow + ContentRow'); // adjacent sibling
+findElement(tree, 'ContentRow + ContentRow');            // adjacent sibling
 findElement(tree, 'NavMenu ~ LayoutGroup');              // general sibling (all following)
-findElements(tree, 'PosterCard, ThumbnailCard');           // comma groups (union)
+findElements(tree, 'PosterCard, ThumbnailCard');         // comma groups (union)
 
 // Attributes
 findElement(tree, '[focused="true"]');                   // exact value
@@ -175,10 +175,12 @@ findElement(tree, 'AppButton:not([focused="true"])');     // negation
 findElement(tree, 'AppButton:has(AppLabel[text="Log Out"])'); // has matching descendant
 
 findElements(tree, 'AppButton');  // all matches
-findFocused(tree);                // currently focused node
+findFocused(tree);                // deepest focused node (leaf of focus chain)
 
 console.log(formatTree(tree, { maxDepth: 3 }));
 ```
+
+Both single and double quotes work in attribute values: `[text="hello"]` and `[text='hello']`.
 
 ### `UiNode`
 
@@ -192,9 +194,21 @@ interface UiNode {
 }
 ```
 
+### `getRect(node)`
+
+Computes absolute screen position by walking parent translations. Roku's `bounds` attribute is local to the parent container, so raw bounds are wrong for any node inside a translated container.
+
+```typescript
+import { getRect } from '@danecodes/roku-ecp';
+
+const rect = getRect(node); // { x, y, width, height } or undefined
+```
+
+Accumulates each parent's `translation` offset. Stops at `inheritParentTransform="false"`. Returns `undefined` if the node has no bounds or is null/undefined.
+
 ## Wait helpers
 
-Poll the device until a condition is met, with configurable timeout and interval:
+Poll the device until a condition is met:
 
 ```typescript
 import {
@@ -229,14 +243,12 @@ const state = await waitFor(async () => {
 }, { timeout: 5000, label: 'waitForPlayback' });
 ```
 
-All helpers accept `WaitOptions`:
-
 | Option | Default | Description |
 |--------|---------|-------------|
 | `timeout` | `10000` | Max wait in ms (`waitForStable` defaults to `3000`) |
 | `interval` | `200` | Poll interval in ms (`waitForStable` defaults to `150`) |
 
-Transient `EcpTimeoutError` and `EcpHttpError` during polling are caught and retried until the deadline. Non-transient errors throw immediately.
+Transient errors (`EcpTimeoutError`, `EcpHttpError`) during polling are swallowed and retried until the deadline. Everything else throws immediately.
 
 ## Typed errors
 
@@ -252,9 +264,9 @@ try {
 }
 ```
 
-## Console & log parsing
+## Console and log parsing
 
-Powered by [@danecodes/roku-log](https://github.com/danecodes/roku-log). Quick issue scan:
+Log parsing comes from [@danecodes/roku-log](https://github.com/danecodes/roku-log), re-exported here. Quick error scan:
 
 ```typescript
 import { parseConsoleForIssues } from '@danecodes/roku-ecp';
@@ -263,7 +275,7 @@ const output = await roku.readConsole({ duration: 5000 });
 const { errors, crashes, exceptions } = parseConsoleForIssues(output);
 ```
 
-For structured parsing with file/line/function extraction:
+For structured parsing (file, line, function, error class):
 
 ```typescript
 import { LogParser, LogStream, LogSession, LogFormatter } from '@danecodes/roku-ecp';
@@ -291,8 +303,8 @@ entries.forEach(e => console.log(fmt.format(e)));
 
 ## Requirements
 
-- Roku device in developer mode on the same network
-- Node.js 22+
+- Roku in developer mode, same network
+- Node 22+
 
 ## License
 
