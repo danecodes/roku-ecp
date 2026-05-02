@@ -85,8 +85,10 @@ export interface ActiveApp {
   name: string;
 }
 
+export type PlayerState = 'play' | 'pause' | 'buffering' | 'stopped' | 'error' | 'finished' | 'idle' | 'open' | 'startup' | 'none';
+
 export interface MediaPlayerState {
-  state: string;
+  state: PlayerState;
   error: boolean;
   plugin?: {
     id: string;
@@ -417,7 +419,7 @@ export class EcpClient {
     const plugin = player?.plugin;
     const format = player?.format;
     return {
-      state: String(player['@_state'] ?? 'none'),
+      state: String(player['@_state'] ?? 'none') as PlayerState,
       error: player['@_error'] === 'true',
       plugin: plugin
         ? {
