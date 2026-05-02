@@ -18,17 +18,63 @@ import { ssdpDiscover, ssdpDiscoverAll } from './ssdp.js';
 /* ------------------------------------------------------------------ */
 
 export interface DeviceInfo {
-  modelName: string;
-  modelNumber: string;
-  softwareVersion: string;
-  softwareBuild: string;
+  // Identity
+  udn: string;
   serialNumber: string;
   deviceId: string;
-  friendlyName: string;
+  modelName: string;
+  modelNumber: string;
+  modelRegion: string;
+  vendorName: string;
+  friendlyDeviceName: string;
+  friendlyModelName: string;
+  userDeviceName: string;
+  userDeviceLocation: string;
+
+  // Software
+  softwareVersion: string;
+  softwareBuild: string;
+  buildNumber: string;
+
+  // Network
   networkType: string;
   networkName: string;
-  isTv: boolean;
+  wifiMac: string;
+  ethernetMac: string;
+  supportsEthernet: boolean;
+  hasWifi5GSupport: boolean;
+  hasWifiExtender: boolean;
+
+  // Display
   uiResolution: string;
+  isTv: boolean;
+  isStick: boolean;
+
+  // Locale
+  language: string;
+  country: string;
+  locale: string;
+  timeZone: string;
+  timeZoneOffset: string;
+
+  // Power
+  powerMode: string;
+  supportsSuspend: boolean;
+
+  // Features
+  developerEnabled: boolean;
+  keyedDeveloperId: string;
+  searchEnabled: boolean;
+  voiceSearchEnabled: boolean;
+  notificationsEnabled: boolean;
+  notificationsFirstUse: boolean;
+  supportsPrivateListening: boolean;
+  headphonesConnected: boolean;
+  supportsFindRemote: boolean;
+  supportsAudioGuide: boolean;
+  secureDevice: boolean;
+
+  /** Additional fields vary by device model and firmware. */
   [key: string]: string | boolean;
 }
 
