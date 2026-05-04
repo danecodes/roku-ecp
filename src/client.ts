@@ -6,7 +6,8 @@
 
 import { XMLParser } from 'fast-xml-parser';
 import { createConnection } from 'net';
-import { readFile, stat, readdir } from 'fs/promises';
+import { readFile, stat, readdir, access } from 'fs/promises';
+import { createHash } from 'crypto';
 import { join, relative } from 'path';
 import { ZipFile } from 'yazl';
 import { EcpHttpError, EcpTimeoutError } from './errors.js';
@@ -172,6 +173,10 @@ export interface EcpClientOptions {
   keyCooldown?: number;
   /** Minimum delay between web server requests in ms. Default 0. */
   webCooldown?: number;
+  /** Number of retries for transient HTTP errors (503, etc). Default 0. */
+  retries?: number;
+  /** Delay between retries in ms. Default 500. */
+  retryDelay?: number;
 }
 
 export interface TouchEvent {
@@ -222,8 +227,13 @@ export class EcpClient {
   private timeout: number;
   private keyCooldown: number;
   private webCooldown: number;
+  private retries: number;
+  private retryDelay: number;
   private lastKeyTime = 0;
   private lastWebTime = 0;
+  private cachedAppUi: string | undefined;
+  private appUiDirty = true;
+  private lastSideloadHash: string | undefined;
 
   constructor(readonly deviceIp: string, options?: EcpClientOptions) {
     const port = options?.port ?? 8060;
@@ -232,6 +242,8 @@ export class EcpClient {
     this.timeout = options?.timeout ?? 10000;
     this.keyCooldown = options?.keyCooldown ?? 0;
     this.webCooldown = options?.webCooldown ?? 0;
+    this.retries = options?.retries ?? 0;
+    this.retryDelay = options?.retryDelay ?? 500;
   }
 
   /* ---- Key input ---- */
@@ -239,16 +251,19 @@ export class EcpClient {
   async keypress(key: KeyName | string): Promise<void> {
     await this.enforceKeyCooldown();
     await this.post(`/keypress/${key}`);
+    this.appUiDirty = true;
   }
 
   async keydown(key: KeyName | string): Promise<void> {
     await this.enforceKeyCooldown();
     await this.post(`/keydown/${key}`);
+    this.appUiDirty = true;
   }
 
   async keyup(key: KeyName | string): Promise<void> {
     await this.enforceKeyCooldown();
     await this.post(`/keyup/${key}`);
+    this.appUiDirty = true;
   }
 
   async press(
@@ -273,6 +288,10 @@ export class EcpClient {
     }
   }
 
+  async clearText(count: number, options?: { delay?: number }): Promise<void> {
+    await this.press('Backspace', { times: count, delay: options?.delay ?? 50 });
+  }
+
   /* ---- App lifecycle ---- */
 
   async launch(
@@ -283,6 +302,7 @@ export class EcpClient {
       ? '?' + new URLSearchParams(params).toString()
       : '';
     await this.post(`/launch/${channelId}${qs}`);
+    this.appUiDirty = true;
   }
 
   async install(channelId: string): Promise<void> {
@@ -318,7 +338,7 @@ export class EcpClient {
 
   /* ---- Sideload ---- */
 
-  async sideload(pathOrDir: string): Promise<string> {
+  async sideload(pathOrDir: string, options?: { force?: boolean }): Promise<string> {
     const info = await stat(pathOrDir);
     let fileData: Buffer;
 
@@ -328,6 +348,15 @@ export class EcpClient {
       fileData = await readFile(pathOrDir);
     }
 
+    // Skip if build hasn't changed
+    if (!options?.force) {
+      const hash = createHash('md5').update(fileData).digest('hex');
+      if (hash === this.lastSideloadHash) {
+        return 'Sideload skipped — build unchanged';
+      }
+      this.lastSideloadHash = hash;
+    }
+
     const html = await digestUpload(
       `http://${this.deviceIp}/plugin_install`,
       'rokudev',
@@ -335,6 +364,7 @@ export class EcpClient {
       { mysubmit: 'Install' },
       { archive: { filename: 'sideload.zip', data: fileData } },
     );
+    this.appUiDirty = true;
     if (html.includes('Install Success')) return 'Install Success';
     if (html.includes('Install Failure')) {
       throw new EcpSideloadError('Sideload failed — check the package');
@@ -448,7 +478,18 @@ export class EcpClient {
   }
 
   async queryAppUi(): Promise<string> {
-    return this.get('/query/app-ui');
+    if (!this.appUiDirty && this.cachedAppUi !== undefined) {
+      return this.cachedAppUi;
+    }
+    const xml = await this.get('/query/app-ui');
+    this.cachedAppUi = xml;
+    this.appUiDirty = false;
+    return xml;
+  }
+
+  /** Force the next queryAppUi() to fetch fresh data. */
+  invalidateAppUiCache(): void {
+    this.appUiDirty = true;
   }
 
   async queryChanperf(): Promise<ChanperfSample> {
@@ -466,6 +507,50 @@ export class EcpClient {
       memAnon: parseInt(String(mem.anon ?? '0'), 10),
       memFile: parseInt(String(mem.file ?? '0'), 10),
     };
+  }
+
+  /* ---- SceneGraph debug ---- */
+
+  async querySGNodesAll(): Promise<string> {
+    return this.get('/query/sgnodes/all');
+  }
+
+  async querySGNodesRoots(): Promise<string> {
+    return this.get('/query/sgnodes/roots');
+  }
+
+  async querySGNodesNodes(nodeId: string): Promise<string> {
+    return this.get(`/query/sgnodes/nodes/${nodeId}`);
+  }
+
+  /* ---- Performance debug ---- */
+
+  async queryGraphicsFrameRate(): Promise<string> {
+    return this.get('/query/graphics-frame-rate');
+  }
+
+  async queryAppObjectCounts(): Promise<string> {
+    return this.get('/query/r2d2-bitmaps');
+  }
+
+  /* ---- Rendezvous tracking ---- */
+
+  async trackSGRendezvous(): Promise<void> {
+    await this.post('/sgrendezvous/track');
+  }
+
+  async untrackSGRendezvous(): Promise<void> {
+    await this.post('/sgrendezvous/untrack');
+  }
+
+  async querySGRendezvous(): Promise<string> {
+    return this.get('/query/sgrendezvous');
+  }
+
+  /* ---- App state ---- */
+
+  async queryAppState(): Promise<string> {
+    return this.get('/query/app-state');
   }
 
   /* ---- Screenshot ---- */
@@ -542,43 +627,40 @@ export class EcpClient {
   /* ---- HTTP helpers ---- */
 
   private async get(path: string): Promise<string> {
-    await this.enforceWebCooldown();
-    let res: Response;
-    try {
-      res = await fetch(`${this.baseUrl}${path}`, {
-        headers: { Connection: 'close' },
-        signal: AbortSignal.timeout(this.timeout),
-      });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'TimeoutError') {
-        throw new EcpTimeoutError(`ECP GET ${path} timed out after ${this.timeout}ms`, this.timeout);
-      }
-      throw err;
-    }
-    if (!res.ok) {
-      throw new EcpHttpError('GET', path, res.status, res.statusText);
-    }
-    return res.text();
+    return this.requestWithRetry('GET', path) as Promise<string>;
   }
 
   private async post(path: string): Promise<void> {
+    await this.requestWithRetry('POST', path);
+  }
+
+  private async requestWithRetry(method: 'GET' | 'POST', path: string, attempt = 0): Promise<string | void> {
     await this.enforceWebCooldown();
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
-        method: 'POST',
+        method,
         headers: { Connection: 'close' },
         signal: AbortSignal.timeout(this.timeout),
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'TimeoutError') {
-        throw new EcpTimeoutError(`ECP POST ${path} timed out after ${this.timeout}ms`, this.timeout);
+        if (attempt < this.retries) {
+          await sleep(this.retryDelay);
+          return this.requestWithRetry(method, path, attempt + 1);
+        }
+        throw new EcpTimeoutError(`ECP ${method} ${path} timed out after ${this.timeout}ms`, this.timeout);
       }
       throw err;
     }
     if (!res.ok) {
-      throw new EcpHttpError('POST', path, res.status, res.statusText);
+      if (attempt < this.retries && res.status >= 500) {
+        await sleep(this.retryDelay);
+        return this.requestWithRetry(method, path, attempt + 1);
+      }
+      throw new EcpHttpError(method, path, res.status, res.statusText);
     }
+    if (method === 'GET') return res.text();
   }
 }
 
@@ -624,9 +706,30 @@ function tcpRead(host: string, port: number, input: string, duration: number): P
 
 /* ---- Zip helper ---- */
 
+const DEFAULT_IGNORES = new Set(['.git', 'node_modules', '.DS_Store', '.env', '.roku-dev-ignore', '.rokudevignore']);
+
+async function loadIgnorePatterns(dir: string): Promise<Set<string>> {
+  const patterns = new Set(DEFAULT_IGNORES);
+  for (const name of ['.rokudevignore', '.roku-dev-ignore']) {
+    try {
+      await access(join(dir, name));
+      const content = await readFile(join(dir, name), 'utf-8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          patterns.add(trimmed);
+        }
+      }
+      break;
+    } catch { /* file doesn't exist */ }
+  }
+  return patterns;
+}
+
 async function zipDirectory(dir: string): Promise<Buffer> {
+  const ignores = await loadIgnorePatterns(dir);
   const zipfile = new ZipFile();
-  await addDirToZip(zipfile, dir, dir);
+  await addDirToZip(zipfile, dir, dir, ignores);
   zipfile.end();
 
   const chunks: Buffer[] = [];
@@ -636,13 +739,14 @@ async function zipDirectory(dir: string): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function addDirToZip(zipfile: ZipFile, baseDir: string, currentDir: string): Promise<void> {
+async function addDirToZip(zipfile: ZipFile, baseDir: string, currentDir: string, ignores: Set<string>): Promise<void> {
   const entries = await readdir(currentDir, { withFileTypes: true });
   for (const entry of entries) {
+    if (ignores.has(entry.name)) continue;
     const fullPath = join(currentDir, entry.name);
     const archivePath = relative(baseDir, fullPath);
     if (entry.isDirectory()) {
-      await addDirToZip(zipfile, baseDir, fullPath);
+      await addDirToZip(zipfile, baseDir, fullPath, ignores);
     } else {
       zipfile.addFile(fullPath, archivePath);
     }
