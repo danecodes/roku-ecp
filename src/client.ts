@@ -231,8 +231,6 @@ export class EcpClient {
   private retryDelay: number;
   private lastKeyTime = 0;
   private lastWebTime = 0;
-  private cachedAppUi: string | undefined;
-  private appUiDirty = true;
   private lastSideloadHash: string | undefined;
 
   constructor(readonly deviceIp: string, options?: EcpClientOptions) {
@@ -251,19 +249,18 @@ export class EcpClient {
   async keypress(key: KeyName | string): Promise<void> {
     await this.enforceKeyCooldown();
     await this.post(`/keypress/${key}`);
-    this.appUiDirty = true;
   }
 
   async keydown(key: KeyName | string): Promise<void> {
     await this.enforceKeyCooldown();
     await this.post(`/keydown/${key}`);
-    this.appUiDirty = true;
+
   }
 
   async keyup(key: KeyName | string): Promise<void> {
     await this.enforceKeyCooldown();
     await this.post(`/keyup/${key}`);
-    this.appUiDirty = true;
+
   }
 
   async press(
@@ -302,7 +299,7 @@ export class EcpClient {
       ? '?' + new URLSearchParams(params).toString()
       : '';
     await this.post(`/launch/${channelId}${qs}`);
-    this.appUiDirty = true;
+
   }
 
   async install(channelId: string): Promise<void> {
@@ -364,7 +361,7 @@ export class EcpClient {
       { mysubmit: 'Install' },
       { archive: { filename: 'sideload.zip', data: fileData } },
     );
-    this.appUiDirty = true;
+
     if (html.includes('Install Success')) return 'Install Success';
     if (html.includes('Install Failure')) {
       throw new EcpSideloadError('Sideload failed — check the package');
@@ -478,18 +475,7 @@ export class EcpClient {
   }
 
   async queryAppUi(): Promise<string> {
-    if (!this.appUiDirty && this.cachedAppUi !== undefined) {
-      return this.cachedAppUi;
-    }
-    const xml = await this.get('/query/app-ui');
-    this.cachedAppUi = xml;
-    this.appUiDirty = false;
-    return xml;
-  }
-
-  /** Force the next queryAppUi() to fetch fresh data. */
-  invalidateAppUiCache(): void {
-    this.appUiDirty = true;
+    return this.get('/query/app-ui');
   }
 
   async queryChanperf(): Promise<ChanperfSample> {
