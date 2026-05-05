@@ -10,12 +10,21 @@ import { XMLParser } from 'fast-xml-parser';
 /*  Types                                                             */
 /* ------------------------------------------------------------------ */
 
-export interface UiNode {
+/** Generic interface any node tree can implement for CSS selector matching. */
+export interface SelectorNode {
+  readonly tag: string;
+  readonly children: readonly SelectorNode[];
+  readonly parent?: SelectorNode | null;
+  getAttribute(name: string): string | undefined;
+}
+
+export interface UiNode extends SelectorNode {
   tag: string;
   name?: string;
   attrs: Record<string, string>;
   children: UiNode[];
   parent?: UiNode;
+  getAttribute(name: string): string | undefined;
 }
 
 /* ------------------------------------------------------------------ */
@@ -66,6 +75,7 @@ function convertOrdered(nodes: Record<string, unknown>[], parent?: UiNode): UiNo
       attrs,
       children: [],
       parent,
+      getAttribute(name: string) { return attrs[name]; },
     };
     node.name = attrs.name ?? attrs.id;
 
@@ -130,7 +140,7 @@ function unwrap(node: UiNode): UiNode {
  *   - Comma groups:      `PosterCard, ThumbnailCard`
  *   - Universal:         `*`, `HomePage *:has(...)`
  */
-export function findElements(root: UiNode, selector: string): UiNode[] {
+export function findElements<T extends SelectorNode>(root: T, selector: string): T[] {
   if (selector.startsWith('//') || selector.startsWith('./')) {
     throw new Error(
       `XPath selectors are not supported: "${selector}". Use CSS (e.g. replace "//Label[@text=\\"X\\"]" with "Label[text=\\"X\\"]")`
@@ -138,35 +148,33 @@ export function findElements(root: UiNode, selector: string): UiNode[] {
   }
   const groups = splitCommaGroups(selector);
   if (groups.length > 1) {
-    const results: UiNode[] = [];
+    const results: T[] = [];
     for (const group of groups) {
-      results.push(...matchParts(root, tokenizeSelector(group), 0, false));
+      results.push(...matchParts<T>(root, tokenizeSelector(group), 0, false));
     }
     return [...new Set(results)];
   }
   const parts = tokenizeSelector(selector);
-  return matchParts(root, parts, 0, false);
+  return matchParts<T>(root, parts, 0, false);
 }
 
-export function findElement(
-  root: UiNode,
+export function findElement<T extends SelectorNode>(
+  root: T,
   selector: string
-): UiNode | undefined {
+): T | undefined {
   return findElements(root, selector)[0];
 }
 
-export function findFocused(node: UiNode): UiNode | undefined {
-  if (node.attrs.focused === 'true') {
-    // Keep looking deeper — Roku marks the whole chain as focused
+export function findFocused<T extends SelectorNode>(node: T): T | undefined {
+  if (node.getAttribute('focused') === 'true') {
     for (const child of node.children) {
-      const deeper = findFocused(child);
+      const deeper = findFocused(child as T);
       if (deeper) return deeper;
     }
-    // No focused child — this is the leaf
     return node;
   }
   for (const child of node.children) {
-    const found = findFocused(child);
+    const found = findFocused(child as T);
     if (found) return found;
   }
   return undefined;
@@ -186,21 +194,21 @@ export interface Rect {
  * the parent chain adding each parent's translation unless inheritParentTransform
  * is "false".
  */
-export function getRect(node: UiNode | undefined | null): Rect | undefined {
+export function getRect(node: SelectorNode | undefined | null): Rect | undefined {
   if (!node) return undefined;
-  const bounds = parseBounds(node.attrs.bounds);
+  const bounds = parseBounds(node.getAttribute('bounds'));
   if (!bounds) return undefined;
 
   let { x, y } = bounds;
   let current = node.parent;
   while (current) {
-    if (node.attrs.inheritParentTransform === 'false') break;
-    const translation = parseTranslation(current.attrs.translation);
+    if (node.getAttribute('inheritParentTransform') === 'false') break;
+    const translation = parseTranslation(current.getAttribute('translation'));
     if (translation) {
       x += translation.x;
       y += translation.y;
     }
-    if (current.attrs.inheritParentTransform === 'false') break;
+    if (current.getAttribute('inheritParentTransform') === 'false') break;
     current = current.parent;
   }
 
@@ -394,28 +402,28 @@ function tokenizeSelector(selector: string): SelectorToken[] {
 
 /* ---- Matching engine ---- */
 
-function matchParts(
-  node: UiNode,
+function matchParts<T extends SelectorNode>(
+  node: T,
   parts: SelectorToken[],
   partIndex: number,
   directChildOnly: boolean
-): UiNode[] {
+): T[] {
   if (partIndex >= parts.length) return [];
 
   const token = parts[partIndex];
 
   if (token.type === 'child') {
-    return matchParts(node, parts, partIndex + 1, true);
+    return matchParts<T>(node, parts, partIndex + 1, true);
   }
   if (token.type === 'adjacent') {
-    return matchAdjacentSibling(node, parts, partIndex + 1);
+    return matchAdjacentSibling<T>(node, parts, partIndex + 1);
   }
   if (token.type === 'sibling') {
-    return matchGeneralSibling(node, parts, partIndex + 1);
+    return matchGeneralSibling<T>(node, parts, partIndex + 1);
   }
 
   const isLastPart = partIndex === parts.length - 1;
-  const results: UiNode[] = [];
+  const results: T[] = [];
 
   if (matchesToken(node, token)) {
     if (isLastPart) {
@@ -423,27 +431,24 @@ function matchParts(
     } else {
       const nextToken = parts[partIndex + 1];
       if (nextToken?.type === 'adjacent') {
-        // Adjacent sibling: check immediate next sibling of this node
         if (node.parent) {
           const siblings = node.parent.children;
           const idx = siblings.indexOf(node);
           if (idx >= 0 && idx < siblings.length - 1) {
-            const next = siblings[idx + 1];
-            results.push(...matchParts(next, parts, partIndex + 2, false));
+            results.push(...matchParts<T>(siblings[idx + 1] as T, parts, partIndex + 2, false));
           }
         }
       } else if (nextToken?.type === 'sibling') {
-        // General sibling: check all following siblings
         if (node.parent) {
           const siblings = node.parent.children;
           const idx = siblings.indexOf(node);
           for (let i = idx + 1; i < siblings.length; i++) {
-            results.push(...matchParts(siblings[i], parts, partIndex + 2, false));
+            results.push(...matchParts<T>(siblings[i] as T, parts, partIndex + 2, false));
           }
         }
       } else {
         for (const child of node.children) {
-          results.push(...matchParts(child, parts, partIndex + 1, false));
+          results.push(...matchParts<T>(child as T, parts, partIndex + 1, false));
         }
       }
     }
@@ -451,28 +456,28 @@ function matchParts(
 
   if (!directChildOnly) {
     for (const child of node.children) {
-      results.push(...matchParts(child, parts, partIndex, false));
+      results.push(...matchParts<T>(child as T, parts, partIndex, false));
     }
   }
 
   return [...new Set(results)];
 }
 
-function matchAdjacentSibling(
-  contextNode: UiNode,
+function matchAdjacentSibling<T extends SelectorNode>(
+  contextNode: T,
   parts: SelectorToken[],
   nextPartIndex: number
-): UiNode[] {
+): T[] {
   if (nextPartIndex >= parts.length) return [];
-  const results: UiNode[] = [];
+  const results: T[] = [];
 
-  const allNodes = collectAll(contextNode);
+  const allNodes = collectAll<T>(contextNode);
   for (const node of allNodes) {
     if (!node.parent) continue;
     const siblings = node.parent.children;
     const idx = siblings.indexOf(node);
     if (idx < 0 || idx >= siblings.length - 1) continue;
-    const nextSibling = siblings[idx + 1];
+    const nextSibling = siblings[idx + 1] as T;
     const token = parts[nextPartIndex];
     if (token.type === 'node' && matchesToken(nextSibling, token)) {
       if (nextPartIndex === parts.length - 1) {
@@ -483,16 +488,16 @@ function matchAdjacentSibling(
   return [...new Set(results)];
 }
 
-function matchGeneralSibling(
-  contextNode: UiNode,
+function matchGeneralSibling<T extends SelectorNode>(
+  contextNode: T,
   parts: SelectorToken[],
   nextPartIndex: number,
-): UiNode[] {
+): T[] {
   if (nextPartIndex >= parts.length) return [];
-  const results: UiNode[] = [];
+  const results: T[] = [];
   const token = parts[nextPartIndex];
 
-  const allNodes = collectAll(contextNode);
+  const allNodes = collectAll<T>(contextNode);
   for (const node of allNodes) {
     if (!node.parent) continue;
     const siblings = node.parent.children;
@@ -501,7 +506,7 @@ function matchGeneralSibling(
     for (let i = idx + 1; i < siblings.length; i++) {
       if (token.type === 'node' && matchesToken(siblings[i], token)) {
         if (nextPartIndex === parts.length - 1) {
-          results.push(siblings[i]);
+          results.push(siblings[i] as T);
         }
       }
     }
@@ -509,15 +514,15 @@ function matchGeneralSibling(
   return [...new Set(results)];
 }
 
-function matchesToken(node: UiNode, token: SelectorToken): boolean {
+function matchesToken(node: SelectorNode, token: SelectorToken): boolean {
   if (token.tag) {
     const aliases = [node.tag];
-    const ext = node.attrs.extends;
+    const ext = node.getAttribute('extends');
     if (ext) aliases.push(...ext.split(/\s+/));
     if (!aliases.some(a => a.toLowerCase() === token.tag!.toLowerCase())) return false;
   }
   if (token.id) {
-    const nodeId = node.attrs.name ?? node.attrs.id ?? node.attrs.uiElementId;
+    const nodeId = node.getAttribute('name') ?? node.getAttribute('id') ?? node.getAttribute('uiElementId');
     if (nodeId !== token.id) return false;
   }
   if (token.nthChild !== undefined) {
@@ -529,12 +534,12 @@ function matchesToken(node: UiNode, token: SelectorToken): boolean {
     if (typeof token.nthChild === 'number') {
       if (idx !== token.nthChild - 1) return false;
     } else if (token.nthChild === 'odd') {
-      if (idx % 2 !== 0) return false;  // 0-indexed: 0,2,4 = 1st,3rd,5th
+      if (idx % 2 !== 0) return false;
     } else if (token.nthChild === 'even') {
-      if (idx % 2 !== 1) return false;  // 0-indexed: 1,3,5 = 2nd,4th,6th
+      if (idx % 2 !== 1) return false;
     } else {
       const { a, b } = token.nthChild;
-      const pos = idx + 1;  // 1-indexed
+      const pos = idx + 1;
       if (a === 0) {
         if (pos !== b) return false;
       } else {
@@ -561,7 +566,7 @@ function matchesToken(node: UiNode, token: SelectorToken): boolean {
   if (token.attrs) {
     for (const attr of token.attrs) {
       if (attr.value !== undefined) {
-        const actual = node.attrs[attr.key];
+        const actual = node.getAttribute(attr.key);
         if (actual === undefined) return false;
         if (attr.op === 'contains') {
           if (!actual.includes(attr.value)) return false;
@@ -573,7 +578,7 @@ function matchesToken(node: UiNode, token: SelectorToken): boolean {
           if (actual !== attr.value) return false;
         }
       } else {
-        if (!(attr.key in node.attrs)) return false;
+        if (node.getAttribute(attr.key) === undefined) return false;
       }
     }
   }
@@ -583,21 +588,18 @@ function matchesToken(node: UiNode, token: SelectorToken): boolean {
     let hasMatch = false;
 
     if (firstHasToken?.type === 'adjacent' && node.parent) {
-      // :has(+ X) — check this node's next sibling
       const siblings = node.parent.children;
       const idx = siblings.indexOf(node);
       if (idx >= 0 && idx < siblings.length - 1) {
         hasMatch = matchParts(siblings[idx + 1], hasTokens, 1, false).length > 0;
       }
     } else if (firstHasToken?.type === 'sibling' && node.parent) {
-      // :has(~ X) — check all following siblings
       const siblings = node.parent.children;
       const idx = siblings.indexOf(node);
       for (let i = idx + 1; i < siblings.length && !hasMatch; i++) {
         hasMatch = matchParts(siblings[i], hasTokens, 1, false).length > 0;
       }
     } else {
-      // :has(selector) — check descendants
       const descendants = collectAll(node).slice(1);
       hasMatch = descendants.some(d => matchParts(d, hasTokens, 0, false).length > 0);
     }
@@ -611,10 +613,10 @@ function matchesToken(node: UiNode, token: SelectorToken): boolean {
   return true;
 }
 
-function collectAll(node: UiNode): UiNode[] {
-  const result: UiNode[] = [node];
+function collectAll<T extends SelectorNode>(node: T): T[] {
+  const result: T[] = [node];
   for (const child of node.children) {
-    result.push(...collectAll(child));
+    result.push(...collectAll(child as T));
   }
   return result;
 }

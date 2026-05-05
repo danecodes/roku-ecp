@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseUiXml, findElement, findElements, findFocused, formatTree, getRect } from '../ui.js';
+import { parseUiXml, findElement, findElements, findFocused, formatTree, getRect, type SelectorNode } from '../ui.js';
 
 const HOME_PAGE_XML = `<?xml version="1.0" encoding="UTF-8" ?>
 <app-ui>
@@ -484,6 +484,69 @@ describe('findFocused', () => {
     const focused = findFocused(tree);
     expect(focused?.attrs.name).toBe('item1');
     expect(focused?.tag).toBe('MenuItem');
+  });
+});
+
+describe('SelectorNode generic interface', () => {
+  function makeNode(
+    tag: string,
+    attrs: Record<string, string>,
+    children: SelectorNode[] = [],
+    parent?: SelectorNode,
+  ): SelectorNode {
+    const node: SelectorNode = {
+      tag,
+      children,
+      parent,
+      getAttribute(name: string) { return attrs[name]; },
+    };
+    return node;
+  }
+
+  it('findElement works on plain SelectorNode objects', () => {
+    const child1 = makeNode('AppButton', { name: 'btn1', focused: 'true' });
+    const child2 = makeNode('AppButton', { name: 'btn2', focused: 'false' });
+    const root = makeNode('HomePage', { name: 'home' }, [child1, child2]);
+    // Set parent refs
+    (child1 as { parent: SelectorNode }).parent = root;
+    (child2 as { parent: SelectorNode }).parent = root;
+
+    const found = findElement(root, 'AppButton#btn1');
+    expect(found).toBe(child1);
+    expect(found?.getAttribute('name')).toBe('btn1');
+  });
+
+  it('findFocused returns deepest focused SelectorNode', () => {
+    const leaf = makeNode('MenuItem', { name: 'item', focused: 'true' });
+    const mid = makeNode('MenuList', { focused: 'true' }, [leaf]);
+    const root = makeNode('Screen', { focused: 'true' }, [mid]);
+    (leaf as { parent: SelectorNode }).parent = mid;
+    (mid as { parent: SelectorNode }).parent = root;
+
+    expect(findFocused(root)).toBe(leaf);
+  });
+
+  it('parent references are preserved on results', () => {
+    const child = makeNode('Card', { name: 'card1' });
+    const container = makeNode('Row', { name: 'row1' }, [child]);
+    const root = makeNode('Page', {}, [container]);
+    (child as { parent: SelectorNode }).parent = container;
+    (container as { parent: SelectorNode }).parent = root;
+
+    const found = findElement(root, '#card1');
+    expect(found?.parent).toBe(container);
+    expect(found?.parent?.parent).toBe(root);
+  });
+
+  it('attribute selectors work via getAttribute', () => {
+    const child = makeNode('Label', { text: 'Hello World', visible: 'true' });
+    const root = makeNode('Screen', {}, [child]);
+    (child as { parent: SelectorNode }).parent = root;
+
+    expect(findElement(root, '[text*="Hello"]')).toBe(child);
+    expect(findElement(root, '[visible]')).toBe(child);
+    expect(findElement(root, '[text^="Hello"]')).toBe(child);
+    expect(findElement(root, '[text$="World"]')).toBe(child);
   });
 });
 

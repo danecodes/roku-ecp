@@ -1,5 +1,5 @@
 import { EcpTimeoutError, EcpHttpError } from './errors.js';
-import { findElement, findFocused, type UiNode } from './ui.js';
+import { findElement, findFocused, type SelectorNode } from './ui.js';
 import type { EcpClient, ActiveApp } from './client.js';
 
 export interface WaitOptions {
@@ -9,7 +9,7 @@ export interface WaitOptions {
   interval?: number;
 }
 
-type TreeSource = () => Promise<UiNode>;
+type TreeSource<T extends SelectorNode = SelectorNode> = () => Promise<T>;
 
 function isTransient(err: unknown): boolean {
   return err instanceof EcpTimeoutError || err instanceof EcpHttpError;
@@ -46,8 +46,8 @@ export async function waitFor<T>(
 }
 
 /** Poll until an element matching `selector` disappears from the UI tree. */
-export async function waitForElementGone(
-  getTree: TreeSource,
+export async function waitForElementGone<T extends SelectorNode>(
+  getTree: TreeSource<T>,
   selector: string,
   opts?: WaitOptions,
 ): Promise<void> {
@@ -62,11 +62,11 @@ export async function waitForElementGone(
 }
 
 /** Poll until an element matching `selector` appears in the UI tree. */
-export async function waitForElement(
-  getTree: TreeSource,
+export async function waitForElement<T extends SelectorNode>(
+  getTree: TreeSource<T>,
   selector: string,
   opts?: WaitOptions,
-): Promise<UiNode> {
+): Promise<T> {
   return poll(
     async () => findElement(await getTree(), selector),
     opts,
@@ -75,17 +75,17 @@ export async function waitForElement(
 }
 
 /** Poll until a focused element is found. If `selector` is given, waits until that specific element has focus. */
-export async function waitForFocus(
-  getTree: TreeSource,
+export async function waitForFocus<T extends SelectorNode>(
+  getTree: TreeSource<T>,
   selector?: string,
   opts?: WaitOptions,
-): Promise<UiNode> {
+): Promise<T> {
   return poll(
     async () => {
       const tree = await getTree();
       if (selector) {
         const el = findElement(tree, selector);
-        return el?.attrs.focused === 'true' ? el : undefined;
+        return el?.getAttribute('focused') === 'true' ? el : undefined;
       }
       return findFocused(tree);
     },
@@ -111,22 +111,24 @@ export async function waitForApp(
 }
 
 /** Poll until two consecutive snapshots agree on the focused element. */
-export async function waitForStable(
-  getTree: TreeSource,
+export async function waitForStable<T extends SelectorNode>(
+  getTree: TreeSource<T>,
   opts?: WaitOptions,
-): Promise<UiNode> {
+): Promise<T> {
   const timeout = opts?.timeout ?? 3000;
   const interval = opts?.interval ?? 150;
   const deadline = Date.now() + timeout;
   let prevId: string | undefined;
-  let prevNode: UiNode | undefined;
+  let prevNode: T | undefined;
   let lastError: unknown;
 
   while (Date.now() < deadline) {
     try {
       const tree = await getTree();
       const focused = findFocused(tree);
-      const curId = focused ? `${focused.tag}:${focused.attrs.name ?? focused.attrs.id ?? ''}` : undefined;
+      const curId = focused
+        ? `${focused.tag}:${focused.getAttribute('name') ?? focused.getAttribute('id') ?? ''}`
+        : undefined;
       if (curId !== undefined && curId === prevId) {
         return prevNode!;
       }
@@ -145,16 +147,16 @@ export async function waitForStable(
 }
 
 /** Poll until an element matching `selector` contains `text` in its text attribute. */
-export async function waitForText(
-  getTree: TreeSource,
+export async function waitForText<T extends SelectorNode>(
+  getTree: TreeSource<T>,
   selector: string,
   text: string,
   opts?: WaitOptions,
-): Promise<UiNode> {
+): Promise<T> {
   return poll(
     async () => {
       const el = findElement(await getTree(), selector);
-      return el?.attrs.text?.includes(text) ? el : undefined;
+      return el?.getAttribute('text')?.includes(text) ? el : undefined;
     },
     opts,
     `waitForText(${selector}, "${text}")`,

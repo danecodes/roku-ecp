@@ -21,6 +21,7 @@ export {
   findFocused,
   formatTree,
   getRect,
+  type SelectorNode,
   type UiNode,
   type Rect,
   type FormatOptions,
