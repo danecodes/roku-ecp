@@ -227,3 +227,74 @@ describe('app-level typed errors', () => {
     expect(err.message).toBe('test');
   });
 });
+
+describe('takeScreenshot', () => {
+  const bigImage = Buffer.alloc(2000, 7);
+
+  // Roku's dev-mode screenshot format is device-dependent: HD (720p) TVs write
+  // a JPEG at /pkgs/dev.jpg, newer/4K models write a PNG at /pkgs/dev.png.
+  // `reportedPath` is what the /plugin_inspect POST response advertises;
+  // `servedExt` is the extension the device actually serves a 200 for.
+  function mockScreenshotFetch(reportedPath: string, servedExt: 'jpg' | 'png') {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => {
+        const u = url.toString();
+        if (u.includes('/plugin_inspect')) {
+          const body = reportedPath
+            ? `<html><img src="${reportedPath}?time=123" /></html>`
+            : '<html>Screenshot ok</html>';
+          return new Response(body, { status: 200 });
+        }
+        if (u.includes(`dev.${servedExt}`)) {
+          return new Response(bigImage, { status: 200 });
+        }
+        // Any other extension does not exist on this device model.
+        return new Response('not found', { status: 404 });
+      }),
+    );
+  }
+
+  it('fetches the JPEG path an HD TV reports, never requesting the missing .png', async () => {
+    mockScreenshotFetch('pkgs/dev.jpg', 'jpg');
+    const client = new EcpClient('192.168.0.1');
+    const img = await client.takeScreenshot();
+    expect(img.length).toBe(2000);
+
+    const urls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) =>
+      String(c[0]),
+    );
+    expect(urls.some((u) => u.includes('dev.jpg'))).toBe(true);
+    expect(urls.some((u) => u.includes('dev.png'))).toBe(false);
+  });
+
+  it('falls back to .jpg when the reported .png path 404s', async () => {
+    // Response advertises .png but the device only serves the .jpg.
+    mockScreenshotFetch('pkgs/dev.png', 'jpg');
+    const client = new EcpClient('192.168.0.1');
+    const img = await client.takeScreenshot();
+    expect(img.length).toBe(2000);
+  });
+
+  it('tries both extensions when the response advertises no path', async () => {
+    mockScreenshotFetch('', 'png');
+    const client = new EcpClient('192.168.0.1');
+    const img = await client.takeScreenshot();
+    expect(img.length).toBe(2000);
+  });
+
+  it('throws EcpScreenshotError when no candidate yields an image', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => {
+        const u = url.toString();
+        if (u.includes('/plugin_inspect')) {
+          return new Response('<html></html>', { status: 200 });
+        }
+        return new Response('not found', { status: 404 });
+      }),
+    );
+    const client = new EcpClient('192.168.0.1');
+    await expect(client.takeScreenshot()).rejects.toBeInstanceOf(EcpScreenshotError);
+  });
+});

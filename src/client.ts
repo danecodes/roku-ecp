@@ -544,7 +544,12 @@ export class EcpClient {
   async takeScreenshot(): Promise<Buffer> {
     const devUrl = `http://${this.deviceIp}`;
 
-    await digestUpload(
+    // The capture format is device-dependent: HD (720p) Roku TVs write the
+    // screenshot as a JPEG at /pkgs/dev.jpg, while newer/4K models write a PNG
+    // at /pkgs/dev.png. Fetching a hardcoded extension 404s on half of devices,
+    // so we read the actual path the device reports in the POST response HTML
+    // (e.g. src="pkgs/dev.jpg?time=..."), and fall back to trying both.
+    const html = await digestUpload(
       `${devUrl}/plugin_inspect`,
       'rokudev',
       this.devPassword,
@@ -552,17 +557,33 @@ export class EcpClient {
       {},
     );
 
-    const png = await digestGet(
-      `${devUrl}/pkgs/dev.png?time=${Date.now()}`,
-      'rokudev',
-      this.devPassword,
-    );
+    const reported = html.match(/pkgs\/dev\.(png|jpe?g)/i)?.[0];
+    const candidates = reported
+      ? [reported, ...['pkgs/dev.jpg', 'pkgs/dev.png'].filter((p) => p !== reported)]
+      : ['pkgs/dev.jpg', 'pkgs/dev.png'];
 
-    if (png.length < 1000) {
+    let image: Buffer | undefined;
+    for (const path of candidates) {
+      try {
+        const data = await digestGet(
+          `${devUrl}/${path}?time=${Date.now()}`,
+          'rokudev',
+          this.devPassword,
+        );
+        if (data.length >= 1000) {
+          image = data;
+          break;
+        }
+      } catch {
+        // Wrong extension for this device model — try the next candidate.
+      }
+    }
+
+    if (!image) {
       throw new EcpScreenshotError('Screenshot failed — is a dev channel sideloaded?');
     }
 
-    return png;
+    return image;
   }
 
   /* ---- SSDP Discovery ---- */
